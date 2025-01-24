@@ -1,0 +1,23 @@
+/* Ensure our extension styles don't conflict with Budgyt's existing styles */
+.betterbudgyt-settings {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #333;
+}
+
+/* Style for updated variance cells to indicate they're being managed by our extension */
+.variance1[data-betterbudgyt="true"],
+.variance2[data-betterbudgyt="true"] {
+  position: relative;
+}
+
+.variance1[data-betterbudgyt="true"]::after,
+.variance2[data-betterbudgyt="true"]::after {
+  content: "✓";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 10px;
+  color: #4CAF50;
+  opacity: 0.7;
+}
