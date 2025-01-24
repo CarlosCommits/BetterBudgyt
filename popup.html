@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BetterBudgyt Settings</title>
+  <style>
+    body {
+      width: 320px;
+      padding: 15px;
+      font-family: Arial, sans-serif;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .variance-config {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    select {
+      width: 100%;
+      padding: 5px;
+      margin: 5px 0;
+    }
+    button {
+      width: 100%;
+      padding: 8px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .secondary-button {
+      background-color: #6c757d;
+    }
+    .secondary-button:hover {
+      background-color: #5a6268;
+    }
+    .button-container {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    .success {
+      background-color: #dff0d8;
+      color: #3c763d;
+    }
+  </style>
+</head>
+<body>
+  <div class="section">
+    <h2>Variance Calculations</h2>
+    
+    <div class="variance-config">
+      <h3>Variance 1</h3>
+      <select id="variance1-minuend">
+        <option value="forecast">Forecast FY25</option>
+        <option value="budget25">Budget FY25</option>
+        <option value="budget26">Budget FY26</option>
+      </select>
+      <div style="text-align: center; margin: 5px 0;">minus</div>
+      <select id="variance1-subtrahend">
+        <option value="forecast">Forecast FY25</option>
+        <option value="budget25">Budget FY25</option>
+        <option value="budget26">Budget FY26</option>
+      </select>
+    </div>
+
+    <div class="variance-config">
+      <h3>Variance 2</h3>
+      <select id="variance2-minuend">
+        <option value="forecast">Forecast FY25</option>
+        <option value="budget25">Budget FY25</option>
+        <option value="budget26">Budget FY26</option>
+      </select>
+      <div style="text-align: center; margin: 5px 0;">minus</div>
+      <select id="variance2-subtrahend">
+        <option value="forecast">Forecast FY25</option>
+        <option value="budget25">Budget FY25</option>
+        <option value="budget26">Budget FY26</option>
+      </select>
+    </div>
+
+    <button id="save">Save Changes</button>
+    <div id="status" class="status">Settings saved!</div>
+  </div>
+
+  <div class="section" id="datainput-section">
+    <h2>DataInput View Settings</h2>
+    <div class="button-container">
+      <button id="compact-view-button" class="secondary-button">
+        Show Total Only
+      </button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
