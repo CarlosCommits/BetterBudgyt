@@ -23,7 +23,8 @@
     {
       "matches": ["https://*.budgyt.com/*"],
       "js": ["content.js"],
-      "css": ["styles.css"]
+      "css": ["styles.css"],
+      "all_frames": true
     }
   ],
   "icons": {

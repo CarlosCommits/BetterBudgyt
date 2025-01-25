@@ -376,15 +376,67 @@ function updateVarianceCalculations() {
   });
 }
 
+// Global click handler for table cells
+document.addEventListener('click', (event) => {
+  // Find the closest td element from the click target
+  const cell = event.target.closest('td');
+  if (!cell) return; // Not a cell click
+  
+  // Check for interactive elements
+  const hasExpander = cell.querySelector('.expander');
+  const hasFormElements = cell.querySelector('input, select');
+  const clickedLink = event.target.closest('a');
+  
+  // Debug logging
+  console.log('Click detected:', {
+    type: clickedLink ? 'link click' : 'cell click',
+    cell: cell,
+    classes: cell.className,
+    hasExpander: !!hasExpander,
+    hasFormElements: !!hasFormElements,
+    formElements: hasFormElements ? {
+      type: hasFormElements.tagName.toLowerCase(),
+      elementType: hasFormElements.type || 'none'
+    } : null,
+    clickedLink: clickedLink ? {
+      href: clickedLink.getAttribute('data-href') || clickedLink.href,
+      text: clickedLink.textContent.trim()
+    } : null,
+    eventTarget: event.target.tagName
+  });
+
+  // Skip highlighting for cells with special elements
+  if (hasExpander) {
+    console.log('Skipping highlight for cell with expander');
+    return;
+  }
+
+  if (hasFormElements) {
+    console.log('Skipping highlight for cell with form elements');
+    return;
+  }
+
+  // If click was directly on a link, let it work normally
+  if (clickedLink) {
+    console.log('Link clicked - skipping highlight');
+    return;
+  }
+  
+  // Otherwise it was a cell click, so prevent default and toggle highlight
+  event.preventDefault();
+  event.stopPropagation();
+  cell.classList.toggle('betterbudgyt-cell-selected');
+}, true); // Use capture phase
+
 // Set up mutation observer to watch for table changes
 const observer = new MutationObserver((mutations) => {
-  for (const mutation of mutations) {
-    if (mutation.type === 'childList' || mutation.type === 'subtree') {
+  mutations.forEach(mutation => {
+    if (mutation.addedNodes.length) {
+      // Update calculations and headers for new content
       updateVarianceCalculations();
-      updateVarianceHeaders(); // Update headers when table changes
-      break;
+      updateVarianceHeaders();
     }
-  }
+  });
 });
 
 // Start observing the table for changes
