@@ -386,39 +386,26 @@ document.addEventListener('click', (event) => {
   const hasExpander = cell.querySelector('.expander');
   const hasFormElements = cell.querySelector('input, select');
   const clickedLink = event.target.closest('a');
+  const hasButton = cell.querySelector('button');
   
-  // Debug logging
-  console.log('Click detected:', {
-    type: clickedLink ? 'link click' : 'cell click',
-    cell: cell,
-    classes: cell.className,
-    hasExpander: !!hasExpander,
-    hasFormElements: !!hasFormElements,
-    formElements: hasFormElements ? {
-      type: hasFormElements.tagName.toLowerCase(),
-      elementType: hasFormElements.type || 'none'
-    } : null,
-    clickedLink: clickedLink ? {
-      href: clickedLink.getAttribute('data-href') || clickedLink.href,
-      text: clickedLink.textContent.trim()
-    } : null,
-    eventTarget: event.target.tagName
-  });
 
   // Skip highlighting for cells with special elements
   if (hasExpander) {
-    console.log('Skipping highlight for cell with expander');
     return;
   }
 
+  // Skip highlighting for cells with special elements
   if (hasFormElements) {
-    console.log('Skipping highlight for cell with form elements');
     return;
   }
 
-  // If click was directly on a link, let it work normally
+  // Skip if cell contains any buttons
+  if (hasButton) {
+    return;
+  }
+  
+  // Skip if click was directly on a link
   if (clickedLink) {
-    console.log('Link clicked - skipping highlight');
     return;
   }
   
@@ -526,25 +513,64 @@ function hideMonthColumns() {
   });
 }
 
-// Wait for table to be fully loaded
-function waitForTable(callback, maxAttempts = 10) {
+// Wait for table and variance columns to be fully loaded
+function waitForTable(callback, maxAttempts = 20) {
   let attempts = 0;
   
   function checkTable() {
     const table = document.querySelector('table');
-    const headers = document.querySelectorAll('th.data[data-period]');
+    const varianceColumns = document.querySelectorAll('th.hideVarianceInBudgetComp');
+    const dataRows = document.querySelectorAll('.lybudgetVal-toprow, .actualbudgetVal-toprow, .comparebudgetVal-toprow');
     
-    if (headers.length > 0) {
-      // Table and headers are loaded
+    console.log('Checking table elements:', {
+      attempt: attempts + 1,
+      tablePresent: !!table,
+      varianceColumnsCount: varianceColumns.length,
+      dataRowsCount: dataRows.length
+    });
+    
+    if (table && varianceColumns.length > 0 && dataRows.length > 0) {
+      // Table, variance columns, and data rows are loaded
+      console.log('Table fully loaded with variance columns and data rows');
       callback();
     } else if (attempts < maxAttempts) {
       // Try again in 500ms
       attempts++;
       setTimeout(checkTable, 500);
+    } else {
+      console.warn('Max attempts reached waiting for table elements');
     }
   }
   
   checkTable();
+}
+
+// Initialize settings and apply them to the table
+function initializeSettings() {
+  console.log('Initializing settings...');
+  
+  chrome.storage.sync.get({
+    variance1: {
+      minuend: 'forecast',
+      subtrahend: 'budget25'
+    },
+    variance2: {
+      minuend: 'forecast',
+      subtrahend: 'budget26'
+    }
+  }, (settings) => {
+    console.log('Loaded settings:', settings);
+    currentSettings = settings;
+    
+    // Initialize headers first
+    initializeVarianceHeaders();
+    
+    // Then update calculations and headers
+    updateVarianceCalculations();
+    updateVarianceHeaders();
+    
+    console.log('Settings applied successfully');
+  });
 }
 
 // Listen for compact view button click
@@ -566,18 +592,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    // Wait for table to load before initializing
+    console.log('DOM loading - waiting for table...');
     waitForTable(() => {
+      console.log('Table ready - initializing components...');
+      initializeSettings();
       initializeObserver();
-      initializeVarianceHeaders();
-      updateVarianceHeaders();
     });
   });
 } else {
   // Same for already loaded pages
+  console.log('DOM already loaded - waiting for table...');
   waitForTable(() => {
+    console.log('Table ready - initializing components...');
+    initializeSettings();
     initializeObserver();
-    initializeVarianceHeaders();
-    updateVarianceHeaders();
   });
 }
