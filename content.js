@@ -598,7 +598,7 @@ document.addEventListener('click', (event) => {
       console.log('Reapplying variance settings after refresh');
       updateVarianceCalculations();
       updateVarianceHeaders();
-    }, 5000);
+    }, 3000);
   }
 });
 
