@@ -11,6 +11,16 @@
   background-color: #90EE90 !important;
 }
 
+/* Ensure absolutely positioned cells in first column also get hover effect */
+.table-hover > tbody > tr:hover > td[style*="position: absolute"] {
+  background-color: #90EE90 !important;
+}
+
+/* Handle direct hover on absolutely positioned cells */
+.table-hover > tbody > tr > td[style*="position: absolute"]:hover {
+  background-color: #90EE90 !important;
+}
+
 /* Style for clicked cells - universal selector with high specificity */
 table tbody tr td.betterbudgyt-cell-selected,
 td.betterbudgyt-cell-selected[style] {
