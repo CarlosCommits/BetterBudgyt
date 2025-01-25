@@ -175,7 +175,8 @@ chrome.storage.sync.get({
   variance2: {
     minuend: 'forecast',
     subtrahend: 'budget26'
-  }
+  },
+  colorGradientEnabled: true
 }, (settings) => {
   currentSettings = settings;
   updateVarianceCalculations();
@@ -188,8 +189,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     currentSettings = message.settings;
     updateVarianceCalculations();
     updateVarianceHeaders();
+  } else if (message.type === 'UPDATE_COLOR_GRADIENT') {
+    chrome.storage.sync.set({ colorGradientEnabled: message.enabled });
+    updatePercentageColors();
   }
 });
+
+// Apply color gradient to percentage cells
+function updatePercentageColors() {
+  chrome.storage.sync.get({ colorGradientEnabled: true }, ({ colorGradientEnabled }) => {
+    const percentageCells = document.querySelectorAll([
+      ...percentageSelectors.percentage1,
+      ...percentageSelectors.percentage2
+    ].join(','));
+
+    percentageCells.forEach(cell => {
+      if (!cell) return;
+      
+      // Remove all styling classes first
+      cell.classList.remove('betterbudgyt-percentage-cell', 'betterbudgyt-percentage-neutral');
+      cell.style.removeProperty('--percentage-abs');
+      
+      if (colorGradientEnabled) {
+        const percentText = cell.textContent.trim();
+        
+        if (percentText === 'N/A') {
+          cell.classList.add('betterbudgyt-percentage-neutral');
+        } else {
+          const percentValue = parseFloat(percentText);
+          if (!isNaN(percentValue)) {
+            const absPercentage = Math.abs(percentValue) / 100;
+            cell.classList.add('betterbudgyt-percentage-cell');
+            cell.style.setProperty('--percentage-abs', absPercentage);
+          }
+        }
+      }
+    });
+  });
+}
 
 // Find cell value based on column type
 function findCellValue(row, columnType) {
@@ -234,7 +271,7 @@ function calculatePercentage(row, minuendCol, subtrahendCol) {
       'Division by zero'
   });
   
-  if (subtrahendValue === 0) return '0.00%';
+  if (subtrahendValue === 0) return 'N/A';
   const percentage = ((minuendValue - subtrahendValue) / subtrahendValue * 100).toFixed(2) + '%';
   
   console.log('Calculated percentage:', percentage);
@@ -266,6 +303,7 @@ function updateCellContent(cell, value) {
 
 // Update variance calculations for all rows
 function updateVarianceCalculations() {
+  updatePercentageColors(); // Add color gradient update
   // Find all rows
   const rows = document.querySelectorAll('tr');
   

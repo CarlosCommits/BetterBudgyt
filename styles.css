@@ -46,3 +46,16 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   text-decoration: underline !important;
   color: #e0e0e0 !important;
 }
+
+/* Percentage cell gradient coloring */
+.betterbudgyt-percentage-cell {
+  background: hsl(calc(120 - (120 * var(--percentage-abs))), 100%, 85%) !important;
+  transition: background 0.3s ease;
+}
+
+/* Neutral color for N/A percentage cells */
+.betterbudgyt-percentage-neutral {
+  background: #f0f0f0 !important;
+  color: #666 !important;
+  transition: background 0.3s ease;
+}
