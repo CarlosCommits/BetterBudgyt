@@ -387,8 +387,8 @@ document.addEventListener('click', (event) => {
   const hasFormElements = cell.querySelector('input, select');
   const clickedLink = event.target.closest('a');
   const hasButton = cell.querySelector('button');
+  const hasCursorPointer = cell.querySelector('span.cursor-pointer');
   
-
   // Skip highlighting for cells with special elements
   if (hasExpander) {
     return;
@@ -406,6 +406,11 @@ document.addEventListener('click', (event) => {
   
   // Skip if click was directly on a link
   if (clickedLink) {
+    return;
+  }
+
+  // Skip if cell contains a cursor-pointer span
+  if (hasCursorPointer) {
     return;
   }
   
