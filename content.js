@@ -430,7 +430,7 @@ const observer = new MutationObserver((mutations) => {
 function initializeObserver() {
   const table = document.querySelector('table');
   if (table) {
-    observer.observe(table, {
+    observer.observe(table.querySelector('tbody') || table, {
       childList: true,
       subtree: true,
       characterData: true
@@ -589,14 +589,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Global click handler for refresh button
+document.addEventListener('click', (event) => {
+  const refreshButton = event.target.closest('#btnDisplayData');
+  if (refreshButton) {
+    console.log('Refresh button clicked - waiting 6 seconds to reapply settings');
+    setTimeout(() => {
+      console.log('Reapplying variance settings after refresh');
+      updateVarianceCalculations();
+      updateVarianceHeaders();
+    }, 5000);
+  }
+});
+
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loading - waiting for table...');
     waitForTable(() => {
-      console.log('Table ready - initializing components...');
-      initializeSettings();
-      initializeObserver();
+    console.log('Table ready - initializing components...');
+    initializeSettings();
+    initializeObserver();
     });
   });
 } else {
