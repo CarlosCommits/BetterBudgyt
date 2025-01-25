@@ -582,9 +582,7 @@ function initializeSettings() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'COMPACT_VIEW_CLICKED') {
     if (isDataInputPage()) {
-      waitForTable(() => {
-        hideMonthColumns();
-      });
+      hideMonthColumns();
     }
     sendResponse();
   } else if (message.type === 'UPDATE_VARIANCE_SETTINGS') {
