@@ -163,7 +163,9 @@ let currentSettings = {
   variance2: {
     minuend: 'forecast',
     subtrahend: 'budget26'
-  }
+  },
+  varianceThreshold: '',
+  varianceHighlightEnabled: false
 };
 
 // Load saved settings when content script initializes
@@ -176,7 +178,9 @@ chrome.storage.sync.get({
     minuend: 'forecast',
     subtrahend: 'budget26'
   },
-  colorGradientEnabled: true
+  colorGradientEnabled: true,
+  varianceThreshold: '',
+  varianceHighlightEnabled: false
 }, (settings) => {
   currentSettings = settings;
   updateVarianceCalculations();
@@ -192,8 +196,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'UPDATE_COLOR_GRADIENT') {
     chrome.storage.sync.set({ colorGradientEnabled: message.enabled });
     updatePercentageColors();
+  } else if (message.type === 'TOGGLE_VARIANCE_HIGHLIGHT') {
+    currentSettings.varianceHighlightEnabled = message.enabled;
+    currentSettings.varianceThreshold = parseFloat(message.threshold);
+    updateVarianceHighlights();
   }
 });
+
+// Update variance highlighting based on threshold
+function updateVarianceHighlights() {
+  const varianceCells = document.querySelectorAll([
+    ...varianceSelectors.variance1,
+    ...varianceSelectors.variance2
+  ].join(','));
+
+  varianceCells.forEach(cell => {
+    if (!cell) return;
+    
+    // Remove existing highlight
+    cell.classList.remove('variance-highlight-active');
+    
+    if (currentSettings.varianceHighlightEnabled && currentSettings.varianceThreshold) {
+      const value = parseFloat(cell.textContent.replace(/,/g, ''));
+      if (!isNaN(value) && Math.abs(value) >= currentSettings.varianceThreshold) {
+        cell.classList.add('variance-highlight-active');
+      }
+    }
+  });
+}
 
 // Calculate hue based on percentage value
 function getPercentageHue(percent) {
@@ -324,6 +354,7 @@ function updateCellContent(cell, value) {
 // Update variance calculations for all rows
 function updateVarianceCalculations() {
   updatePercentageColors(); // Add color gradient update
+  updateVarianceHighlights(); // Add variance highlighting update
   // Find all rows
   const rows = document.querySelectorAll('tr');
   
