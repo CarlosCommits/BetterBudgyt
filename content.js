@@ -195,6 +195,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Calculate hue based on percentage value
+function getPercentageHue(percent) {
+    if (percent < 0) {
+        return 0; // Red for negative values
+    } else if (percent <= 100) {
+        return percent * 1.2; // 0° → 120° (red → green)
+    } else if (percent <= 200) {
+        return 120 - ((percent - 100) * 1.2); // 120° → 0° (green → red)
+    } else if (percent <= 250) {
+        // More gradual transition from red to purple
+        return ((percent - 200) * 0.6); // Slower transition from 0° (red)
+    } else if (percent <= 300) {
+        return ((percent - 200) * 0.9); // Continue to purple more gradually
+    } else if (percent <= 400) {
+        return 270 - ((percent - 300) * 0.3); // Purple → Blue
+    } else {
+        return Math.max(220, 240 - ((percent - 400) * 0.2)); // Blue → Deep Blue
+    }
+}
+
 // Apply color gradient to percentage cells
 function updatePercentageColors() {
   chrome.storage.sync.get({ colorGradientEnabled: true }, ({ colorGradientEnabled }) => {
@@ -208,7 +228,7 @@ function updatePercentageColors() {
       
       // Remove all styling classes first
       cell.classList.remove('betterbudgyt-percentage-cell', 'betterbudgyt-percentage-neutral');
-      cell.style.removeProperty('--percentage-abs');
+      cell.style.removeProperty('--percentage-hue');
       
       if (colorGradientEnabled) {
         const percentText = cell.textContent.trim();
@@ -218,9 +238,9 @@ function updatePercentageColors() {
         } else {
           const percentValue = parseFloat(percentText);
           if (!isNaN(percentValue)) {
-            const absPercentage = Math.abs(percentValue) / 100;
+            const hue = getPercentageHue(percentValue);
             cell.classList.add('betterbudgyt-percentage-cell');
-            cell.style.setProperty('--percentage-abs', absPercentage);
+            cell.style.setProperty('--percentage-hue', hue);
           }
         }
       }
@@ -267,12 +287,12 @@ function calculatePercentage(row, minuendCol, subtrahendCol) {
     minuendValue,
     subtrahendValue,
     calculation: subtrahendValue !== 0 ? 
-      `(${minuendValue} - ${subtrahendValue}) / ${subtrahendValue} * 100` : 
+      `(${minuendValue} / ${subtrahendValue}) * 100` : 
       'Division by zero'
   });
   
   if (subtrahendValue === 0) return 'N/A';
-  const percentage = ((minuendValue - subtrahendValue) / subtrahendValue * 100).toFixed(2) + '%';
+  const percentage = ((minuendValue / subtrahendValue) * 100).toFixed(2) + '%';
   
   console.log('Calculated percentage:', percentage);
   return percentage;
