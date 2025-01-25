@@ -9,8 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     variance2: {
       minuend: 'forecast',
       subtrahend: 'budget26'
-    }
+    },
+    colorGradientEnabled: true
   }, (settings) => {
+    // Set color gradient toggle
+    document.getElementById('color-gradient-toggle').checked = settings.colorGradientEnabled;
     // Populate dropdowns with saved settings
     document.getElementById('variance1-minuend').value = settings.variance1.minuend;
     document.getElementById('variance1-subtrahend').value = settings.variance1.subtrahend;
@@ -39,6 +42,16 @@ document.getElementById('compact-view-button').addEventListener('click', () => {
   }, 2000);
 });
 
+// Handle color gradient toggle
+document.getElementById('color-gradient-toggle').addEventListener('change', (e) => {
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'UPDATE_COLOR_GRADIENT',
+      enabled: e.target.checked
+    });
+  });
+});
+
 // Save settings when button is clicked
 document.getElementById('save').addEventListener('click', () => {
   const settings = {
@@ -53,7 +66,10 @@ document.getElementById('save').addEventListener('click', () => {
   };
 
   // Save to Chrome storage
-  chrome.storage.sync.set(settings, () => {
+  chrome.storage.sync.set({
+    ...settings,
+    colorGradientEnabled: document.getElementById('color-gradient-toggle').checked
+  }, () => {
     // Show success message
     const status = document.getElementById('status');
     status.classList.add('success');
