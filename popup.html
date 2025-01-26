@@ -4,9 +4,11 @@
   <title>BetterBudgyt Settings</title>
   <style>
     body {
-      width: 320px;
+      width: 400px;
       padding: 15px;
       font-family: Arial, sans-serif;
+      max-height: 600px;
+      overflow-y: auto;
     }
     .section {
       margin-bottom: 20px;
@@ -95,15 +97,6 @@
     <div id="status" class="status">Settings saved!</div>
   </div>
 
-  <div class="section" id="datainput-section">
-    <h2>DataInput View Settings</h2>
-    <div class="button-container">
-      <button id="compact-view-button" class="secondary-button">
-        Show Total Only
-      </button>
-    </div>
-  </div>
-
   <div class="section">
     <h2>Visual Settings</h2>
     <div class="variance-config">
@@ -120,6 +113,15 @@
                style="flex: 1; padding: 6px;">
         <button id="toggle-threshold" class="secondary-button" style="width: auto; padding: 6px 12px;">
           Toggle
+        </button>
+      </div>
+    </div>
+
+    <div class="variance-config">
+      <h3>DataInput View Settings</h3>
+      <div class="button-container">
+        <button id="compact-view-button" class="secondary-button">
+          Show Total Only
         </button>
       </div>
     </div>
