@@ -229,19 +229,17 @@ function updateVarianceHighlights() {
 function getPercentageHue(percent) {
     if (percent < 0) {
         return 0; // Red for negative values
+    } else if (percent <= 50) {
+        // More dramatic transition from red to orange/yellow in first half
+        return percent * 0.8; // Slower transition from red (0°) to orange (~40°)
     } else if (percent <= 100) {
-        return percent * 1.2; // 0° → 120° (red → green)
+        // Faster transition from orange/yellow to green in second half
+        return 40 + ((percent - 50) * 1.6); // Faster transition to green (120°)
     } else if (percent <= 200) {
-        return 120 - ((percent - 100) * 1.2); // 120° → 0° (green → red)
-    } else if (percent <= 250) {
-        // More gradual transition from red to purple
-        return ((percent - 200) * 0.6); // Slower transition from 0° (red)
-    } else if (percent <= 300) {
-        return ((percent - 200) * 0.9); // Continue to purple more gradually
-    } else if (percent <= 400) {
-        return 270 - ((percent - 300) * 0.3); // Purple → Blue
+        // More dramatic difference for values over 100%
+        return Math.max(0, 120 - ((percent - 100) * 1.5)); // Faster transition back to red
     } else {
-        return Math.max(220, 240 - ((percent - 400) * 0.2)); // Blue → Deep Blue
+        return 0; // Red for values over 200%
     }
 }
 
