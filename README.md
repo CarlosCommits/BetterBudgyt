@@ -1,122 +1,127 @@
-# BetterBudgyt Chrome Extension (Beta)
+# BetterBudgyt Chrome Extension
 
-A Chrome extension designed to enhance Budgyt dashboards with customizable variance calculations and improved data visualization.
+A Chrome extension that enhances Budgyt.com dashboards with customizable variance calculations and improved data visualization.
 
-## Overview
+## Quick Installation Guide
 
-BetterBudgyt is a specialized Chrome extension that extends the functionality of Budgyt's financial dashboards. It provides customizable variance calculations, dynamic percentage updates, and improved data visualization features while maintaining the integrity of your original data.
+1. **Download the Extension**
+   - Download this repository as a ZIP file
+   - Extract the ZIP file to a location on your computer
 
-> **Note**: This is an early/beta version of the extension.
+2. **Install in Chrome**
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode" in the top-right corner
+   - Click "Load unpacked" in the top-left
+   - Select the extracted extension folder
+   - The BetterBudgyt icon should appear in your Chrome toolbar
 
-## Key Features
+3. **Verify Installation**
+   - The BetterBudgyt icon should appear in your Chrome toolbar
+   - Click the icon to open the settings popup
+   - Visit any Budgyt dashboard page to see the extension in action
 
-- **Customizable Variance Calculations**
-  - Flexible column selection for variance computations
-  - Support for all budget data levels
-  - Real-time calculation updates
+## Quick Start Guide
 
-- **Dynamic Percentage Calculations**
-  - Automatic percentage updates based on variance values
-  - Handles zero-value edge cases
-  - Maintains calculation accuracy
+1. **Configure Variance Calculations**
+   - Click the BetterBudgyt icon in your toolbar
+   - Select your desired columns for variance calculations
+   - Changes are saved automatically
 
-- **DataInput View Optimization**
-  - Total-only view option
-  - Simplified data presentation
-  - Preserved total column functionality
+2. **Using Total-Only View**
+   - Open any DataInput page in Budgyt
+   - Click the BetterBudgyt icon
+   - Toggle "Show Total Only" for a simplified view
 
-- **User-Friendly Interface**
-  - Intuitive settings configuration
-  - Visual indicators for managed cells
-  - Persistent settings across sessions
+3. **Understanding Visual Indicators**
+   - Modified cells have a subtle highlight
+   - Hover over rows for enhanced visibility
+   - Headers show current calculation formulas
 
-- **Data Integrity**
-  - Client-side only operations
-  - No server communication
-  - Original data remains untouched
-
-## Installation
-
-### Prerequisites
-- Google Chrome browser
-- Access to Budgyt dashboard
-
-### Required Permissions
-- `storage`: For saving your settings
-- `activeTab`: For accessing the current page
-- `scripting`: For performing calculations
-- Access to `*.budgyt.com` domains
-
-## Usage
-
-### Basic Configuration
-1. Click the BetterBudgyt icon in your Chrome toolbar
-2. Configure your preferred variance calculations
-3. Settings are automatically saved and applied
+## Features
 
 ### Variance Calculations
-- Select columns for variance computations
-- Supports multiple calculation combinations
-- Updates dynamically as you make changes
+- Customize which columns to use in variance calculations
+- Real-time updates as you make changes
+- Support for all budget data levels
+- Dynamic percentage calculations
 
-### DataInput View Features
-- Toggle "Show Total Only" for simplified view
-- Quick access to essential totals
-- Easy to switch between views
+### DataInput View Optimization
+- Toggle between full and total-only views
+- Simplified data presentation
+- Preserved total column functionality
 
-### Settings Management
-- All settings persist across sessions
-- Synchronized across devices
-- Easy to modify at any time
+### User-Friendly Interface
+- Intuitive settings configuration
+- Visual indicators for modified cells
+- Settings persist across sessions
+
+### Data Safety
+- Works entirely client-side
+- No data is sent to servers
+- Original Budgyt data remains unchanged
+
+## Troubleshooting
+
+### Extension Not Working?
+1. Ensure you're on a Budgyt dashboard page (https://*.budgyt.com/*)
+2. Check if the extension is enabled in chrome://extensions/
+3. Try refreshing the page
+4. Disable and re-enable the extension if needed
+
+### Settings Not Saving?
+1. Check if Chrome sync is enabled
+2. Try removing and re-adding the extension
+3. Clear extension storage and reconfigure
+
+### Visual Issues?
+1. Refresh the page
+2. Ensure no other extensions are conflicting
+3. Check if your Budgyt page is fully loaded
 
 ## Technical Details
 
 ### Built With
-- Chrome Extension APIs
+- Chrome Extension APIs (Manifest V3)
 - Native JavaScript (ES6+)
 - HTML5 & CSS3
 
+### Permissions Used
+- `storage`: Saves your settings
+- `activeTab`: Accesses current page
+- `scripting`: Performs calculations
+- Access to `*.budgyt.com` domains
+
 ### Architecture
-- Operates entirely client-side
+- Client-side operations only
 - Uses MutationObserver for real-time updates
-- Implements precise CSS selectors for data extraction
-
-### Data Safety
-- No server communication
-- Only modifies visual display
-- Original Budgyt data remains unchanged
-
-## Current Status
-
-### Implemented Features
-- [x] Customizable variance column calculations
-- [x] Dynamic percentage calculations
-- [x] DataInput view compaction
-- [x] Persistent settings storage
-- [x] Real-time updates
-- [x] Visual indicators for managed cells
-- [x] Support for all data levels
-- [x] Dynamic headers
-
-### Planned Enhancements
-- [ ] Additional column combination support
-- [ ] Custom formatting options
-- [ ] Export/import settings functionality
-- [ ] Calculation presets
-- [ ] Enhanced data validation
+- Implements precise CSS selectors
 
 ## Development
 
-Built using:
-- Chrome Extension Framework (Manifest V3)
-- Chrome Storage Sync API
-- DOM Manipulation APIs
-- MutationObserver API
+### Project Structure
+```
+├── manifest.json      # Extension configuration
+├── popup.html        # Settings interface
+├── popup.js         # Settings logic
+├── content.js       # Main functionality
+├── styles.css       # Custom styling
+└── images/          # Extension icons
+```
 
-## License
+### Building from Source
+1. Clone the repository
+2. Make desired modifications
+3. Test locally using Chrome's developer mode
+4. Package for distribution if needed
 
-[Your License Here]
+### Contributing
+- Fork the repository
+- Create a feature branch
+- Submit a pull request
 
-## Support
-
-[Your Support Information Here]
+## Future Enhancements
+- Additional column combination support
+- Custom formatting options
+- Export/import settings
+- Calculation presets
+- Enhanced data validation
