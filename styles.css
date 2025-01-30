@@ -68,3 +68,121 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
     background-color: #fff3cd !important;
     border-left: 3px solid #ffc107 !important;
 }
+
+/* Sum Panel Styles */
+.betterbudgyt-sum-panel {
+    position: fixed;
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    width: 300px;
+    z-index: 9999;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.betterbudgyt-sum-panel.dragging {
+    opacity: 0.8;
+    cursor: grabbing;
+}
+
+.betterbudgyt-sum-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: grab;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.betterbudgyt-sum-panel-title {
+    font-weight: bold;
+    color: #333;
+}
+
+.betterbudgyt-sum-panel-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.betterbudgyt-sum-panel-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #666;
+    border-radius: 4px;
+}
+
+.betterbudgyt-sum-panel-button:hover {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.betterbudgyt-sum-panel-content {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.betterbudgyt-sum-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+}
+
+.betterbudgyt-sum-table th,
+.betterbudgyt-sum-table td {
+    padding: 6px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.betterbudgyt-sum-table th {
+    font-weight: bold;
+    color: #666;
+}
+
+.betterbudgyt-sum-table td:last-child {
+    text-align: right;
+}
+
+.betterbudgyt-sum-total {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 2px solid #ddd;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* Minimize/Maximize styles */
+.betterbudgyt-sum-panel.minimized {
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    right: 20px !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    left: auto !important;
+}
+
+.betterbudgyt-sum-panel.minimized .betterbudgyt-sum-panel-content,
+.betterbudgyt-sum-panel.minimized .betterbudgyt-sum-panel-header {
+    display: none;
+}
+
+.betterbudgyt-sum-panel.minimized::after {
+    content: "∑";
+    font-size: 24px;
+    font-weight: bold;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
