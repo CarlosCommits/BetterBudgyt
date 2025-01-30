@@ -6,33 +6,148 @@ function formatNumber(number) {
   });
 }
 
-// Column selectors for each budget type
-const columnSelectors = {
-  forecast: {
-    header: 'th:has(a.sort-both):contains("Forecast FY25")',
-    cells: [
-      '.actualbudgetVal-toprow',
-      '.actual-budgetVal',
-      '[class*="catTopRow-actualBudget"]'
-    ]
-  },
-  budget25: {
-    header: 'th:has(a.sort-both):contains("Budget FY25")',
-    cells: [
-      '.comparebudgetVal-toprow',
-      '.compare-budgetVal',
-      '[class*="catTopRow-compareBudget"]'
-    ]
-  },
-  budget26: {
-    header: 'th:has(a.sort-both):contains("Budget FY26")',
-    cells: [
-      '.lybudgetVal-toprow',
-      '.actual-budgetLYVal',
-      '[class*="catTopRow-LYBudget"]'
-    ]
+// Helper function to check if scenarios have changed
+function scenariosChanged(oldScenarios, newScenarios) {
+  return !oldScenarios || 
+         oldScenarios.length !== newScenarios.length ||
+         oldScenarios.some((s, i) => s !== newScenarios[i]);
+}
+
+// Scenario detection observer
+const scenarioObserver = new MutationObserver(() => {
+  // Get scenario names from specific span elements
+  const scenario1Element = document.querySelector('span#select2-chosen-52');
+  const scenario2Element = document.querySelector('span#select2-chosen-54');
+  
+  // For Scenario 3, find all spans matching the structure but exclude scenario 2's span
+  const scenario3Element = Array.from(
+    document.querySelectorAll('div.select2-container.select2me.comp-budget-list.select2me-large a span.select2-chosen')
+  ).find(span => span.id !== 'select2-chosen-54');
+  
+  const newScenarios = [
+    scenario1Element?.textContent.trim() || 'Scenario 1',
+    scenario2Element?.textContent.trim() || 'Scenario 2',
+    scenario3Element?.textContent.trim() || 'Scenario 3'
+  ];
+  
+  console.log('Found scenario elements:', {
+    scenario1: scenario1Element?.id,
+    scenario2: scenario2Element?.id,
+    scenario3: scenario3Element?.id,
+    names: newScenarios
+  });
+  
+  // Only update if we found at least one scenario
+  if (newScenarios.some(name => name !== 'Scenario 1' && name !== 'Scenario 2' && name !== 'Scenario 3')) {
+    chrome.storage.local.get('scenarios', ({scenarios}) => {
+      if (scenariosChanged(scenarios?.names, newScenarios)) {
+        chrome.storage.local.set({ 
+          scenarios: {
+            names: newScenarios,
+            timestamp: Date.now()
+          }
+        });
+        chrome.runtime.sendMessage({type: 'SCENARIOS_UPDATED'});
+        console.log('Updated scenarios:', newScenarios);
+      }
+    });
   }
-};
+});
+
+// Function to initialize scenario observer
+function initializeScenarioObserver(maxAttempts = 20) {
+  let attempts = 0;
+  
+  function tryObserve() {
+    // Get all three containers
+    const container1 = document.querySelector('.dashboardLabels.year-list');
+    const container2 = document.querySelector('.dashboardLabels.comparisionBudget1Year');
+    const container3 = document.querySelector('.dashboardLabels.comparisionBudget2Year');
+    
+    if (container1 && container2 && container3) {
+      // Observe all three containers
+      scenarioObserver.observe(container1, {
+        childList: true,
+        subtree: true
+      });
+      scenarioObserver.observe(container2, {
+        childList: true,
+        subtree: true
+      });
+      scenarioObserver.observe(container3, {
+        childList: true,
+        subtree: true
+      });
+      
+      // Trigger initial scan
+      const scenario1Element = document.querySelector('span#select2-chosen-52');
+      const scenario2Element = document.querySelector('span#select2-chosen-54');
+      
+      // For Scenario 3, find all spans matching the structure but exclude scenario 2's span
+      const scenario3Element = Array.from(
+        document.querySelectorAll('div.select2-container.select2me.comp-budget-list.select2me-large a span.select2-chosen')
+      ).find(span => span.id !== 'select2-chosen-54');
+      
+      const initialScenarios = [
+        scenario1Element?.textContent.trim() || 'Scenario 1',
+        scenario2Element?.textContent.trim() || 'Scenario 2',
+        scenario3Element?.textContent.trim() || 'Scenario 3'
+      ];
+      
+      console.log('Initial scenario elements:', {
+        scenario1: scenario1Element?.id,
+        scenario2: scenario2Element?.id,
+        scenario3: scenario3Element?.id,
+        names: initialScenarios
+      });
+      
+      if (initialScenarios.some(name => name !== 'Scenario 1' && name !== 'Scenario 2' && name !== 'Scenario 3')) {
+        chrome.storage.local.set({ 
+          scenarios: {
+            names: initialScenarios,
+            timestamp: Date.now()
+          }
+        });
+        console.log('Initial scenarios set:', initialScenarios);
+      }
+    } else if (attempts < maxAttempts) {
+      attempts++;
+      setTimeout(tryObserve, 500);
+    } else {
+      console.warn('Max attempts reached waiting for scenario container');
+    }
+  }
+  
+  tryObserve();
+}
+
+// Initialize scenario observer
+initializeScenarioObserver();
+
+// Column selectors with dynamic scenario names
+let columnSelectors = {};
+
+function updateColumnSelectors(scenarios) {
+  columnSelectors = {
+    0: {
+      header: `th:has(a.sort-both):contains("${scenarios[0] || 'Scenario 1'}")`,
+      cells: ['.actualbudgetVal-toprow', '.actual-budgetVal', '[class*="catTopRow-actualBudget"]']
+    },
+    1: {
+      header: `th:has(a.sort-both):contains("${scenarios[1] || 'Scenario 2'}")`,
+      cells: ['.comparebudgetVal-toprow', '.compare-budgetVal', '[class*="catTopRow-compareBudget"]']
+    },
+    2: {
+      header: `th:has(a.sort-both):contains("${scenarios[2] || 'Scenario 3'}")`,
+      cells: ['.lybudgetVal-toprow', '.actual-budgetLYVal', '[class*="catTopRow-LYBudget"]']
+    }
+  };
+}
+
+// Initialize with current scenarios
+chrome.storage.local.get('scenarios', ({scenarios}) => {
+  updateColumnSelectors(scenarios?.names || []);
+});
 
 // Variance column selectors
 const varianceSelectors = {
@@ -80,25 +195,66 @@ function isValidPercentageCell(cell, type) {
          (type === 2 ? cell.classList.contains('hideThirdBudgetInBudgetComp') : true);
 }
 
-// Get abbreviated name for column type
-function getAbbreviatedName(columnType) {
-  switch (columnType) {
-    case 'forecast':
-      return 'F25';
-    case 'budget25':
-      return 'B25';
-    case 'budget26':
-      return 'B26';
-    default:
-      return '';
-  }
+// Get abbreviated name for scenario
+function getAbbreviatedName(scenarioIndex) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('scenarios', ({scenarios}) => {
+      if (!scenarios?.names?.[scenarioIndex]) {
+        resolve(`S${scenarioIndex + 1}`);
+        return;
+      }
+      
+      const name = scenarios.names[scenarioIndex];
+      // Take just first letter and any numbers
+      const firstLetter = name.match(/\b\w/)?.[0] || 'S';
+      const numbers = name.match(/\d+/)?.[0] || '';
+      const abbr = (firstLetter + numbers).toUpperCase();
+      resolve(abbr || `S${scenarioIndex + 1}`);
+    });
+  });
 }
 
 // Generate header text based on variance settings
-function generateHeaderText(varianceNum, minuend, subtrahend) {
-  const minAbbr = getAbbreviatedName(minuend);
-  const subAbbr = getAbbreviatedName(subtrahend);
+async function generateHeaderText(varianceNum, minuend, subtrahend) {
+  const [minAbbr, subAbbr] = await Promise.all([
+    getAbbreviatedName(minuend),
+    getAbbreviatedName(subtrahend)
+  ]);
   return `V${varianceNum}: ${minAbbr} - ${subAbbr}`;
+}
+
+// Update variance headers based on current settings
+async function updateVarianceHeaders() {
+  // Find variance headers using their classes
+  const headers = document.querySelectorAll('th.hideVarianceInBudgetComp');
+  
+  // Initialize headers if needed
+  initializeVarianceHeaders();
+  
+  for (const header of headers) {
+    const varianceType = header.getAttribute('data-variance-type');
+    const sortButton = header.querySelector('a.sort-both');
+    if (!sortButton) continue;
+    
+    let newText;
+    if (varianceType === 'variance1') {
+      newText = await generateHeaderText(1, currentSettings.variance1.minuend, currentSettings.variance1.subtrahend);
+      // Keep original text in title for tooltip
+      header.title = `Variance 1 (${newText})`;
+    } else if (varianceType === 'variance2') {
+      newText = await generateHeaderText(2, currentSettings.variance2.minuend, currentSettings.variance2.subtrahend);
+      // Keep original text in title for tooltip
+      header.title = `Variance 2 (${newText})`;
+    }
+
+    if (newText) {
+      // Clear existing content
+      header.innerHTML = '';
+      // Add new text and sort button
+      header.appendChild(document.createTextNode(newText + ' '));
+      header.appendChild(sortButton);
+    }
+  }
 }
 
 // Initialize variance headers with data attributes
@@ -119,50 +275,16 @@ function initializeVarianceHeaders() {
   });
 }
 
-// Update variance headers based on current settings
-function updateVarianceHeaders() {
-  // Find variance headers using their classes
-  const headers = document.querySelectorAll('th.hideVarianceInBudgetComp');
-  
-  // Initialize headers if needed
-  initializeVarianceHeaders();
-  
-  headers.forEach(header => {
-    const varianceType = header.getAttribute('data-variance-type');
-    const sortButton = header.querySelector('a.sort-both');
-    if (!sortButton) return;
-    
-    if (varianceType === 'variance1') {
-      const newText = generateHeaderText(1, currentSettings.variance1.minuend, currentSettings.variance1.subtrahend);
-      // Keep original text in title for tooltip
-      header.title = `Variance 1 (${newText})`;
-      // Clear existing content
-      header.innerHTML = '';
-      // Add new text and sort button
-      header.appendChild(document.createTextNode(newText + ' '));
-      header.appendChild(sortButton);
-    } else if (varianceType === 'variance2') {
-      const newText = generateHeaderText(2, currentSettings.variance2.minuend, currentSettings.variance2.subtrahend);
-      // Keep original text in title for tooltip
-      header.title = `Variance 2 (${newText})`;
-      // Clear existing content
-      header.innerHTML = '';
-      // Add new text and sort button
-      header.appendChild(document.createTextNode(newText + ' '));
-      header.appendChild(sortButton);
-    }
-  });
-}
 
 // Store current settings
 let currentSettings = {
   variance1: {
-    minuend: 'forecast',
-    subtrahend: 'budget25'
+    minuend: 0,
+    subtrahend: 1
   },
   variance2: {
-    minuend: 'forecast',
-    subtrahend: 'budget26'
+    minuend: 0,
+    subtrahend: 2
   },
   varianceThreshold: '',
   varianceHighlightEnabled: false
@@ -171,28 +293,28 @@ let currentSettings = {
 // Load saved settings when content script initializes
 chrome.storage.sync.get({
   variance1: {
-    minuend: 'forecast',
-    subtrahend: 'budget25'
+    minuend: 0,
+    subtrahend: 1
   },
   variance2: {
-    minuend: 'forecast',
-    subtrahend: 'budget26'
+    minuend: 0,
+    subtrahend: 2
   },
   colorGradientEnabled: true,
   varianceThreshold: '',
   varianceHighlightEnabled: false
-}, (settings) => {
+}, async (settings) => {
   currentSettings = settings;
   updateVarianceCalculations();
-  updateVarianceHeaders(); // Update headers when settings are loaded
+  await updateVarianceHeaders(); // Update headers when settings are loaded
 });
 
 // Listen for settings updates from popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'UPDATE_VARIANCE_SETTINGS') {
     currentSettings = message.settings;
     updateVarianceCalculations();
-    updateVarianceHeaders();
+    await updateVarianceHeaders();
   } else if (message.type === 'UPDATE_COLOR_GRADIENT') {
     chrome.storage.sync.set({ colorGradientEnabled: message.enabled });
     updatePercentageColors();
@@ -201,6 +323,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     currentSettings.varianceThreshold = parseFloat(message.threshold);
     updateVarianceHighlights();
   }
+  // Send response after async operations complete
+  sendResponse();
+  return true; // Keep message channel open for async response
 });
 
 // Update variance highlighting based on threshold
@@ -465,6 +590,10 @@ function updateVarianceCalculations() {
 
 // Global click handler for table cells
 document.addEventListener('click', (event) => {
+  // First check if click is within a table that has both classes
+  const dashboardTable = event.target.closest('table.table.table-striped');
+  if (!dashboardTable) return;
+  
   // Find the closest td element from the click target
   const cell = event.target.closest('td');
   if (!cell) return; // Not a cell click
@@ -477,27 +606,7 @@ document.addEventListener('click', (event) => {
   const hasCursorPointer = cell.querySelector('span.cursor-pointer');
   
   // Skip highlighting for cells with special elements
-  if (hasExpander) {
-    return;
-  }
-
-  // Skip highlighting for cells with special elements
-  if (hasFormElements) {
-    return;
-  }
-
-  // Skip if cell contains any buttons
-  if (hasButton) {
-    return;
-  }
-  
-  // Skip if click was directly on a link
-  if (clickedLink) {
-    return;
-  }
-
-  // Skip if cell contains a cursor-pointer span
-  if (hasCursorPointer) {
+  if (hasExpander || hasFormElements || hasButton || clickedLink || hasCursorPointer) {
     return;
   }
   
@@ -509,23 +618,22 @@ document.addEventListener('click', (event) => {
 
 // Set up mutation observer to watch for table changes
 const observer = new MutationObserver((mutations) => {
-  mutations.forEach(mutation => {
+  mutations.forEach(async mutation => {
     if (mutation.addedNodes.length) {
       // Update calculations and headers for new content
       updateVarianceCalculations();
-      updateVarianceHeaders();
+      await updateVarianceHeaders();
     }
   });
 });
 
 // Start observing the table for changes
 function initializeObserver() {
-  const table = document.querySelector('table');
-  if (table) {
-    observer.observe(table.querySelector('tbody') || table, {
+  const dashboardTable = document.querySelector('table.table');
+  if (dashboardTable) {
+    observer.observe(dashboardTable, {
       childList: true,
-      subtree: true,
-      characterData: true
+      subtree: true
     });
     updateVarianceCalculations();
   }
@@ -638,19 +746,19 @@ function waitForTable(callback, maxAttempts = 20) {
 }
 
 // Initialize settings and apply them to the table
-function initializeSettings() {
+async function initializeSettings() {
   console.log('Initializing settings...');
   
   chrome.storage.sync.get({
     variance1: {
-      minuend: 'forecast',
-      subtrahend: 'budget25'
+      minuend: 0,
+      subtrahend: 1
     },
     variance2: {
-      minuend: 'forecast',
-      subtrahend: 'budget26'
+      minuend: 0,
+      subtrahend: 2
     }
-  }, (settings) => {
+  }, async (settings) => {
     console.log('Loaded settings:', settings);
     currentSettings = settings;
     
@@ -659,14 +767,14 @@ function initializeSettings() {
     
     // Then update calculations and headers
     updateVarianceCalculations();
-    updateVarianceHeaders();
+    await updateVarianceHeaders();
     
     console.log('Settings applied successfully');
   });
 }
 
 // Listen for compact view button click
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'COMPACT_VIEW_CLICKED') {
     if (isDataInputPage()) {
       hideMonthColumns();
@@ -675,8 +783,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'UPDATE_VARIANCE_SETTINGS') {
     currentSettings = message.settings;
     updateVarianceCalculations();
-    updateVarianceHeaders();
+    await updateVarianceHeaders();
   }
+  return true; // Keep message channel open for async response
 });
 
 // Global click handler for refresh button
@@ -684,30 +793,35 @@ document.addEventListener('click', (event) => {
   const refreshButton = event.target.closest('#btnDisplayData');
   if (refreshButton) {
     console.log('Refresh button clicked - waiting 6 seconds to reapply settings');
-    setTimeout(() => {
+    setTimeout(async () => {
       console.log('Reapplying variance settings after refresh');
       updateVarianceCalculations();
-      updateVarianceHeaders();
+      await updateVarianceHeaders();
     }, 3000);
   }
 });
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loading - waiting for table...');
+// Initialize all components
+async function initializeAll() {
+  console.log('Initializing components...');
+  
+  // Wait for table to be ready
+  await new Promise((resolve) => {
     waitForTable(() => {
-    console.log('Table ready - initializing components...');
-    initializeSettings();
-    initializeObserver();
+      console.log('Table ready - initializing settings...');
+      initializeSettings();
+      initializeObserver();
+      resolve();
     });
   });
+  
+  console.log('All components initialized');
+}
+
+// Initialize as soon as possible
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeAll);
 } else {
   // Same for already loaded pages
-  console.log('DOM already loaded - waiting for table...');
-  waitForTable(() => {
-    console.log('Table ready - initializing components...');
-    initializeSettings();
-    initializeObserver();
-  });
+  initializeAll();
 }
