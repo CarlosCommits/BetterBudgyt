@@ -6,6 +6,19 @@ function formatNumber(number) {
   });
 }
 
+// Show month columns in DataInput view
+function showMonthColumns() {
+  if (!isDatasheetPage()) return;
+
+  console.log('Restoring month columns view');
+  
+  const elementsToRestore = document.querySelectorAll('[data-original-style]');
+  elementsToRestore.forEach(element => {
+    element.setAttribute('style', element.getAttribute('data-original-style'));
+    element.removeAttribute('data-original-style');
+  });
+}
+
 // Helper function to check if scenarios have changed
 function scenariosChanged(oldScenarios, newScenarios) {
   return !oldScenarios || 
@@ -888,6 +901,14 @@ const observer = new MutationObserver((mutations) => {
       // Update calculations and headers for new content
       updateVarianceCalculations();
       await updateVarianceHeaders();
+      
+      // Check if we should apply compact view when table content changes
+      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+        if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+          console.log('Table mutation detected - applying compact view');
+          hideMonthColumns();
+        }
+      });
     }
   });
 });
@@ -909,6 +930,12 @@ function isDataInputPage() {
   return window.location.href.includes('/Budget/DataInput/');
 }
 
+// Check if current page is a datasheet page
+function isDatasheetPage() {
+  return window.location.href.includes('/Budget/DataInput/') && 
+         !window.location.href.includes('/Budget/DataInput/Edit/');
+}
+
 // Store original styles before hiding
 function storeOriginalStyles(element) {
   if (!element.getAttribute('data-original-style')) {
@@ -918,8 +945,10 @@ function storeOriginalStyles(element) {
 
 // Hide month columns in DataInput view
 function hideMonthColumns() {
-  if (!isDataInputPage()) return;
+  if (!isDatasheetPage()) return;
 
+  console.log('Applying compact view to hide month columns');
+  
   // First hide headers using data-period
   const headers = document.querySelectorAll('th.data[data-period]');
   headers.forEach(header => {
@@ -1040,14 +1069,26 @@ async function initializeSettings() {
 
 // Listen for compact view button click
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.type === 'COMPACT_VIEW_CLICKED') {
+  if (message.type === 'TOGGLE_SHOW_TOTAL_ONLY') {
+    // Store the setting
+    chrome.storage.sync.set({ showTotalOnlyEnabled: message.enabled });
+    
+    // Apply immediately if on a relevant page
     if (isDataInputPage()) {
-      hideMonthColumns();
+      if (message.enabled) {
+        hideMonthColumns();
+      } else {
+        showMonthColumns();
+      }
+    } else if (isDatasheetPage() && message.enabled) {
+      // For datasheet pages, apply with delay if enabled
+      applyCompactViewWithDelay(1000); // Use shorter delay for direct user action
     }
-    sendResponse();
+    
+    sendResponse({status: "Show total only toggled"});
   } else if (message.type === 'UPDATE_VARIANCE_SETTINGS') {
     // currentSettings is updated by the primary message listener.
-    // This listener primarily handles COMPACT_VIEW_CLICKED.
+    // This listener primarily handles TOGGLE_SHOW_TOTAL_ONLY.
     // Re-applying settings here is redundant if the first listener caught it.
     // However, to ensure settings apply if this is the only listener for some reason:
     if (message.settings) { // Check if settings are part of this message
@@ -1055,9 +1096,11 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         updateVarianceCalculations();
         await updateVarianceHeaders();
     }
+    sendResponse({status: "Settings updated"});
   }
   // TOGGLE_CALCULATOR is handled by the primary message listener.
-  sendResponse(); // Ensure sendResponse is called for all message types handled here.
+  // Ensure sendResponse is called for all message types handled by *this* listener.
+  // If other specific listeners handle other types, they should call sendResponse themselves.
   return true; // Keep message channel open for async response
 });
 
@@ -1074,9 +1117,124 @@ document.addEventListener('click', (event) => {
   }
 });
 
+// Apply compact view with a delay to ensure table is loaded
+function applyCompactViewWithDelay(delay = 3000) {
+  console.log(`Applying compact view with ${delay}ms delay`);
+  setTimeout(() => {
+    if (isDatasheetPage()) {
+      console.log('Applying compact view to datasheet page');
+      hideMonthColumns();
+    }
+  }, delay);
+}
+
+// Track URL changes to apply compact view when navigating to datasheet pages
+let lastUrl = window.location.href;
+
+// Function to check for URL changes
+function setupUrlChangeDetection() {
+  console.log('Setting up URL change detection');
+  
+  // Function to handle URL changes
+  function handleUrlChange() {
+    if (lastUrl !== window.location.href) {
+      console.log(`URL changed from ${lastUrl} to ${window.location.href}`);
+      lastUrl = window.location.href;
+      
+      // Check if we should apply compact view
+      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+        if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+          console.log('Show total only is enabled and we are on a datasheet page');
+          applyCompactViewWithDelay();
+        }
+      });
+    }
+  }
+  
+  // Method 1: Use MutationObserver to detect DOM changes that might indicate navigation
+  const urlObserver = new MutationObserver(() => {
+    handleUrlChange();
+  });
+  
+  // Observe changes to the document body
+  urlObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+  
+  // Method 2: Listen for popstate events (browser back/forward navigation)
+  window.addEventListener('popstate', () => {
+    console.log('Popstate event detected');
+    handleUrlChange();
+  });
+  
+  // Method 3: Periodic check as a fallback
+  setInterval(() => {
+    handleUrlChange();
+  }, 2000); // Check every 2 seconds
+  
+  // Method 4: Check for Total cells as an indicator that table has loaded
+  const totalCellObserver = new MutationObserver(() => {
+    const totalCells = document.querySelectorAll('td[title="Total"], th[title="Total"]');
+    if (totalCells.length > 0) {
+      console.log('Total cells detected in the table');
+      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+        if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+          console.log('Show total only is enabled and Total cells are present');
+          hideMonthColumns();
+        }
+      });
+    }
+  });
+  
+  // Observe the entire document for Total cells
+  totalCellObserver.observe(document, {
+    childList: true,
+    subtree: true
+  });
+}
+
+// Add zoom/resize event listener to reapply compact view when zooming
+function setupZoomDetection() {
+  console.log('Setting up zoom detection');
+  
+  window.addEventListener('resize', () => {
+    chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+        console.log('Zoom/resize detected - reapplying compact view');
+        hideMonthColumns();
+      }
+    });
+  });
+  
+  // Add a periodic check to detect if month columns become visible when they shouldn't be
+  setInterval(() => {
+    chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+        // Check if any month columns are visible when they shouldn't be
+        const monthTitles = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        const visibleMonthCells = document.querySelectorAll(
+          monthTitles.map(month => `td[title="${month}"]:not([style*="display: none"])`).join(', ')
+        );
+        
+        if (visibleMonthCells.length > 0) {
+          console.log('Detected visible month cells when they should be hidden - reapplying compact view');
+          hideMonthColumns();
+        }
+      }
+    });
+  }, 5000); // Check every 5 seconds
+}
+
 // Initialize all components
 async function initializeAll() {
   console.log('Initializing components...');
+  
+  // Set up URL change detection
+  setupUrlChangeDetection();
+  
+  // Set up zoom detection
+  setupZoomDetection();
   
   // Wait for table to be ready
   await new Promise((resolve) => {
@@ -1084,6 +1242,20 @@ async function initializeAll() {
       console.log('Table ready - initializing settings...');
       initializeSettings();
       initializeObserver();
+      
+      // Load "Show Total Only" setting on page load
+      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+        if (settings.showTotalOnlyEnabled) {
+          if (isDataInputPage()) {
+            console.log('Initial "Show Total Only" is enabled, hiding month columns.');
+            hideMonthColumns();
+          } else if (isDatasheetPage()) {
+            console.log('Initial "Show Total Only" is enabled and we are on a datasheet page.');
+            applyCompactViewWithDelay();
+          }
+        }
+      });
+      
       resolve();
     });
   });
