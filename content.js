@@ -6,6 +6,17 @@ function formatNumber(number) {
   });
 }
 
+// Show month columns in DataInput view
+function showMonthColumns() {
+  if (!isDataInputPage()) return;
+
+  const elementsToRestore = document.querySelectorAll('[data-original-style]');
+  elementsToRestore.forEach(element => {
+    element.setAttribute('style', element.getAttribute('data-original-style'));
+    element.removeAttribute('data-original-style');
+  });
+}
+
 // Helper function to check if scenarios have changed
 function scenariosChanged(oldScenarios, newScenarios) {
   return !oldScenarios || 
@@ -1040,14 +1051,18 @@ async function initializeSettings() {
 
 // Listen for compact view button click
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.type === 'COMPACT_VIEW_CLICKED') {
+  if (message.type === 'TOGGLE_SHOW_TOTAL_ONLY') {
     if (isDataInputPage()) {
-      hideMonthColumns();
+      if (message.enabled) {
+        hideMonthColumns();
+      } else {
+        showMonthColumns();
+      }
     }
-    sendResponse();
+    sendResponse({status: "Show total only toggled"});
   } else if (message.type === 'UPDATE_VARIANCE_SETTINGS') {
     // currentSettings is updated by the primary message listener.
-    // This listener primarily handles COMPACT_VIEW_CLICKED.
+    // This listener primarily handles TOGGLE_SHOW_TOTAL_ONLY.
     // Re-applying settings here is redundant if the first listener caught it.
     // However, to ensure settings apply if this is the only listener for some reason:
     if (message.settings) { // Check if settings are part of this message
@@ -1055,9 +1070,11 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         updateVarianceCalculations();
         await updateVarianceHeaders();
     }
+    sendResponse({status: "Settings updated"});
   }
   // TOGGLE_CALCULATOR is handled by the primary message listener.
-  sendResponse(); // Ensure sendResponse is called for all message types handled here.
+  // Ensure sendResponse is called for all message types handled by *this* listener.
+  // If other specific listeners handle other types, they should call sendResponse themselves.
   return true; // Keep message channel open for async response
 });
 
@@ -1084,6 +1101,15 @@ async function initializeAll() {
       console.log('Table ready - initializing settings...');
       initializeSettings();
       initializeObserver();
+      
+      // Load "Show Total Only" setting on page load
+      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+        if (settings.showTotalOnlyEnabled && isDataInputPage()) {
+          console.log('Initial "Show Total Only" is enabled, hiding month columns.');
+          hideMonthColumns();
+        }
+      });
+      
       resolve();
     });
   });
