@@ -28,9 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
       variance2: { minuend: 0, subtrahend: 2 },
       colorGradientEnabled: true,
       varianceThreshold: '',
-      varianceHighlightEnabled: false
+      varianceHighlightEnabled: false,
+      calculatorEnabled: true // Default to true
     }, (settings) => {
       document.getElementById('color-gradient-toggle').checked = settings.colorGradientEnabled;
+      document.getElementById('calculator-toggle').checked = settings.calculatorEnabled; // Set checkbox state
       document.getElementById('variance1-minuend').value = settings.variance1.minuend;
       document.getElementById('variance1-subtrahend').value = settings.variance1.subtrahend;
       document.getElementById('variance2-minuend').value = settings.variance2.minuend;
@@ -40,6 +42,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const toggleBtn = document.getElementById('toggle-threshold');
       toggleBtn.textContent = settings.varianceHighlightEnabled ? 'Disable' : 'Enable';
       toggleBtn.classList.toggle('active', settings.varianceHighlightEnabled);
+    });
+  });
+});
+
+// Calculator toggle event listener
+document.getElementById('calculator-toggle').addEventListener('change', (e) => {
+  const enabled = e.target.checked;
+  chrome.storage.sync.set({ calculatorEnabled: enabled });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'TOGGLE_CALCULATOR',
+      enabled: enabled
     });
   });
 });
@@ -131,6 +145,7 @@ document.getElementById('save').addEventListener('click', () => {
   chrome.storage.sync.set({
     ...settings,
     colorGradientEnabled: document.getElementById('color-gradient-toggle').checked,
+    calculatorEnabled: document.getElementById('calculator-toggle').checked, // Include in saved settings
     varianceThreshold: document.getElementById('variance-threshold').value
   }, () => {
     chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
