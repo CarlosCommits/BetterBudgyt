@@ -276,6 +276,9 @@ function initializeVarianceHeaders() {
 }
 
 
+// Global variable for calculator state
+let calculatorEnabled = true;
+
 // Store current settings
 let currentSettings = {
   variance1: {
@@ -287,7 +290,8 @@ let currentSettings = {
     subtrahend: 2
   },
   varianceThreshold: '',
-  varianceHighlightEnabled: false
+  varianceHighlightEnabled: false,
+  // calculatorEnabled is managed separately but initialized here for consistency
 };
 
 // Load saved settings when content script initializes
@@ -302,9 +306,18 @@ chrome.storage.sync.get({
   },
   colorGradientEnabled: true,
   varianceThreshold: '',
-  varianceHighlightEnabled: false
+  varianceHighlightEnabled: false,
+  calculatorEnabled: true // Default to true
 }, async (settings) => {
-  currentSettings = settings;
+  currentSettings = { // Explicitly set currentSettings, excluding calculatorEnabled
+    variance1: settings.variance1,
+    variance2: settings.variance2,
+    colorGradientEnabled: settings.colorGradientEnabled,
+    varianceThreshold: settings.varianceThreshold,
+    varianceHighlightEnabled: settings.varianceHighlightEnabled
+  };
+  calculatorEnabled = settings.calculatorEnabled; // Set global variable
+
   updateVarianceCalculations();
   await updateVarianceHeaders(); // Update headers when settings are loaded
 });
@@ -322,6 +335,25 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     currentSettings.varianceHighlightEnabled = message.enabled;
     currentSettings.varianceThreshold = parseFloat(message.threshold);
     updateVarianceHighlights();
+  } else if (message.type === 'TOGGLE_CALCULATOR') {
+    calculatorEnabled = message.enabled;
+    if (!calculatorEnabled) {
+      const sumPanel = document.querySelector('.betterbudgyt-sum-panel');
+      if (sumPanel) {
+        sumPanel.remove();
+      }
+      // Clear the map of selected cells
+      selectedCells.clear();
+      
+      // Unhighlight any currently selected cells
+      const highlightedCells = document.querySelectorAll('.betterbudgyt-cell-selected');
+      highlightedCells.forEach(cell => {
+        cell.classList.remove('betterbudgyt-cell-selected');
+      });
+      
+      // Update the sum panel (to clear its display, even if hidden)
+      updateSumPanel();
+    }
   }
   // Send response after async operations complete
   sendResponse();
@@ -593,6 +625,8 @@ let selectedCells = new Map();
 
 // Create and initialize sum panel
 function createSumPanel() {
+  if (!calculatorEnabled) return; // Do not create panel if calculator is disabled
+
   const panel = document.createElement('div');
   panel.className = 'betterbudgyt-sum-panel';
   
@@ -799,7 +833,7 @@ document.addEventListener('click', (event) => {
   // Find the closest td element from the click target
   const cell = event.target.closest('td');
   if (!cell) return; // Not a cell click
-  
+
   // Check for interactive elements
   const hasExpander = cell.querySelector('.expander');
   const hasFormElements = cell.querySelector('input, select');
@@ -816,8 +850,11 @@ document.addEventListener('click', (event) => {
   event.preventDefault();
   event.stopPropagation();
 
-  // Toggle cell selection
+  // Toggle cell selection - This should happen regardless of calculatorEnabled
   cell.classList.toggle('betterbudgyt-cell-selected');
+
+  // If calculator is disabled, do nothing further (panel, map, etc.)
+  if (!calculatorEnabled) return;
 
   // Get cell value and description
   const value = parseFloat(cell.textContent.replace(/[^0-9.-]+/g, '')) || 0;
@@ -827,12 +864,13 @@ document.addEventListener('click', (event) => {
   const descriptionCell = row.querySelector('td[style*="z-index: 1"]');
   const description = descriptionCell ? descriptionCell.textContent.trim() : 'Unknown';
 
-  // Create sum panel if it doesn't exist
-  if (!document.querySelector('.betterbudgyt-sum-panel')) {
+  // Create sum panel if it doesn't exist and calculator is enabled
+  if (calculatorEnabled && !document.querySelector('.betterbudgyt-sum-panel')) {
     createSumPanel();
   }
 
-  // Update selected cells map
+  // Update selected cells map only if calculator is enabled
+  // The check for calculatorEnabled is now done above.
   if (cell.classList.contains('betterbudgyt-cell-selected')) {
     selectedCells.set(cell, { value, description });
   } else {
@@ -1008,10 +1046,18 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     }
     sendResponse();
   } else if (message.type === 'UPDATE_VARIANCE_SETTINGS') {
-    currentSettings = message.settings;
-    updateVarianceCalculations();
-    await updateVarianceHeaders();
+    // currentSettings is updated by the primary message listener.
+    // This listener primarily handles COMPACT_VIEW_CLICKED.
+    // Re-applying settings here is redundant if the first listener caught it.
+    // However, to ensure settings apply if this is the only listener for some reason:
+    if (message.settings) { // Check if settings are part of this message
+        currentSettings = message.settings;
+        updateVarianceCalculations();
+        await updateVarianceHeaders();
+    }
   }
+  // TOGGLE_CALCULATOR is handled by the primary message listener.
+  sendResponse(); // Ensure sendResponse is called for all message types handled here.
   return true; // Keep message channel open for async response
 });
 
