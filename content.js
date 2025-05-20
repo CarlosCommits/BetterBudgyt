@@ -1194,12 +1194,47 @@ function setupUrlChangeDetection() {
   });
 }
 
+// Add zoom/resize event listener to reapply compact view when zooming
+function setupZoomDetection() {
+  console.log('Setting up zoom detection');
+  
+  window.addEventListener('resize', () => {
+    chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+        console.log('Zoom/resize detected - reapplying compact view');
+        hideMonthColumns();
+      }
+    });
+  });
+  
+  // Add a periodic check to detect if month columns become visible when they shouldn't be
+  setInterval(() => {
+    chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
+        // Check if any month columns are visible when they shouldn't be
+        const monthTitles = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        const visibleMonthCells = document.querySelectorAll(
+          monthTitles.map(month => `td[title="${month}"]:not([style*="display: none"])`).join(', ')
+        );
+        
+        if (visibleMonthCells.length > 0) {
+          console.log('Detected visible month cells when they should be hidden - reapplying compact view');
+          hideMonthColumns();
+        }
+      }
+    });
+  }, 5000); // Check every 5 seconds
+}
+
 // Initialize all components
 async function initializeAll() {
   console.log('Initializing components...');
   
   // Set up URL change detection
   setupUrlChangeDetection();
+  
+  // Set up zoom detection
+  setupZoomDetection();
   
   // Wait for table to be ready
   await new Promise((resolve) => {
