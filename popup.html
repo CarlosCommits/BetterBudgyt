@@ -3,124 +3,323 @@
 <head>
   <title>BetterBudgyt Settings</title>
   <style>
+    :root {
+      --primary-color: #4CAF50;
+      --primary-hover: #45a049;
+      --secondary-color: #6c757d;
+      --secondary-hover: #5a6268;
+      --border-color: #e0e0e0;
+      --text-color: #333;
+      --light-bg: #f8f9fa;
+      --card-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
     body {
-      width: 400px;
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-color);
+      background-color: #fff;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    /* Tab Navigation */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      background-color: var(--light-bg);
+    }
+    
+    .tab-btn {
+      padding: 10px 15px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--secondary-color);
+      position: relative;
+      transition: color 0.2s;
+    }
+    
+    .tab-btn:hover {
+      color: var(--text-color);
+    }
+    
+    .tab-btn.active {
+      color: var(--primary-color);
+    }
+    
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background-color: var(--primary-color);
+    }
+    
+    /* Tab Content */
+    .tab-content {
+      display: none;
       padding: 15px;
-      font-family: Arial, sans-serif;
-      max-height: 600px;
-      overflow-y: auto;
+      animation: fadeIn 0.3s;
     }
-    .section {
-      margin-bottom: 20px;
+    
+    .tab-content.active {
+      display: block;
     }
-    .variance-config {
-      border: 1px solid #ccc;
-      padding: 10px;
-      margin-bottom: 15px;
-      border-radius: 4px;
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
+    
+    /* Card Styling */
+    .card {
+      background-color: #fff;
+      border-radius: 6px;
+      box-shadow: var(--card-shadow);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text-color);
+    }
+    
+    /* Toggle Switch */
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .toggle-label {
+      flex: 1;
+    }
+    
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+    
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .3s;
+      border-radius: 20px;
+    }
+    
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .toggle-slider {
+      background-color: var(--primary-color);
+    }
+    
+    input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+    
+    /* Select Styling */
     select {
       width: 100%;
-      padding: 5px;
-      margin: 5px 0;
-    }
-    button {
-      width: 100%;
       padding: 8px;
-      background-color: #4CAF50;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background-color: #fff;
+      margin: 5px 0;
+      font-size: 13px;
+    }
+    
+    /* Button Styling */
+    button {
+      padding: 8px 12px;
+      background-color: var(--primary-color);
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 13px;
+      transition: background-color 0.2s;
     }
+    
     button:hover {
-      background-color: #45a049;
+      background-color: var(--primary-hover);
     }
-    .secondary-button {
-      background-color: #6c757d;
+    
+    .btn-secondary {
+      background-color: var(--secondary-color);
     }
-    .secondary-button:hover {
-      background-color: #5a6268;
+    
+    .btn-secondary:hover {
+      background-color: var(--secondary-hover);
     }
-    .button-container {
-      padding: 10px;
-      border: 1px solid #ccc;
+    
+    .btn-block {
+      display: block;
+      width: 100%;
+    }
+    
+    /* Input Styling */
+    input[type="number"] {
+      padding: 8px;
       border-radius: 4px;
+      border: 1px solid var(--border-color);
+      width: 100%;
     }
+    
+    /* Variance Config */
+    .variance-config {
+      margin-bottom: 12px;
+    }
+    
+    .variance-config .minus-label {
+      text-align: center;
+      margin: 5px 0;
+      font-size: 12px;
+      color: var(--secondary-color);
+    }
+    
+    /* Status Message */
     .status {
       margin-top: 10px;
-      padding: 10px;
+      padding: 8px;
       border-radius: 4px;
       display: none;
+      text-align: center;
+      font-size: 13px;
     }
+    
     .success {
-      background-color: #dff0d8;
-      color: #3c763d;
+      background-color: #d4edda;
+      color: #155724;
+    }
+    
+    /* Threshold Input Group */
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    
+    .input-group input {
+      flex: 1;
+    }
+    
+    .input-group button {
+      white-space: nowrap;
     }
   </style>
 </head>
 <body>
-  <div class="section">
-    <h2>Variance Calculations</h2>
-    
-    <div class="variance-config">
-      <h3 class="scenario-label">Variance 1</h3>
+  <!-- Tab Navigation -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="variance">Variance</button>
+    <button class="tab-btn" data-tab="visual">Visual</button>
+    <button class="tab-btn" data-tab="display">Display</button>
+  </div>
+  
+  <!-- Variance Tab -->
+  <div id="variance-tab" class="tab-content active">
+    <div class="card">
+      <div class="card-title">Variance 1</div>
       <select id="variance1-minuend" class="scenario-select">
         <!-- Options populated dynamically -->
       </select>
-      <div style="text-align: center; margin: 5px 0;">minus</div>
+      <div class="minus-label">minus</div>
       <select id="variance1-subtrahend" class="scenario-select">
         <!-- Options populated dynamically -->
       </select>
     </div>
-
-    <div class="variance-config">
-      <h3 class="scenario-label">Variance 2</h3>
+    
+    <div class="card">
+      <div class="card-title">Variance 2</div>
       <select id="variance2-minuend" class="scenario-select">
         <!-- Options populated dynamically -->
       </select>
-      <div style="text-align: center; margin: 5px 0;">minus</div>
+      <div class="minus-label">minus</div>
       <select id="variance2-subtrahend" class="scenario-select">
         <!-- Options populated dynamically -->
       </select>
     </div>
-
-    <button id="save">Save Changes</button>
+    
+    <button id="save" class="btn-block">Save Changes</button>
     <div id="status" class="status">Settings saved!</div>
   </div>
-
-  <div class="section">
-    <h2>Visual Settings</h2>
-    <div class="variance-config">
-      <label style="display: flex; align-items: center; gap: 8px;">
-        <input type="checkbox" id="color-gradient-toggle" checked>
-        Enable percentage color gradient
-      </label>
-    </div>
-    <div class="variance-config">
-      <label style="display: flex; align-items: center; gap: 8px;">
-        <input type="checkbox" id="calculator-toggle">
-        Enable Calculator
-      </label>
-    </div>
-    <div class="variance-config">
-      <h3>Variance Highlight Threshold</h3>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <input type="number" id="variance-threshold" 
-               placeholder="Enter amount" 
-               style="flex: 1; padding: 6px;">
-        <button id="toggle-threshold" class="secondary-button" style="width: auto; padding: 6px 12px;">
-          Toggle
-        </button>
+  
+  <!-- Visual Tab -->
+  <div id="visual-tab" class="tab-content">
+    <div class="card">
+      <div class="toggle-container">
+        <span class="toggle-label">Percentage color gradient</span>
+        <label class="toggle">
+          <input type="checkbox" id="color-gradient-toggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      
+      <div class="toggle-container">
+        <span class="toggle-label">Calculator</span>
+        <label class="toggle">
+          <input type="checkbox" id="calculator-toggle">
+          <span class="toggle-slider"></span>
+        </label>
       </div>
     </div>
-
-    <div class="variance-config">
-      <h3>DataInput View Settings</h3>
-      <label style="display: flex; align-items: center; gap: 8px;">
-        <input type="checkbox" id="show-total-only-toggle">
-        Automatically show totals only on DataInput pages
-      </label>
+    
+    <div class="card">
+      <div class="card-title">Variance Highlight Threshold</div>
+      <div class="input-group">
+        <input type="number" id="variance-threshold" placeholder="Enter amount">
+        <button id="toggle-threshold" class="btn-secondary">Toggle</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Display Tab -->
+  <div id="display-tab" class="tab-content">
+    <div class="card">
+      <div class="toggle-container">
+        <span class="toggle-label">Show totals only on DataInput pages</span>
+        <label class="toggle">
+          <input type="checkbox" id="show-total-only-toggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
   </div>
 

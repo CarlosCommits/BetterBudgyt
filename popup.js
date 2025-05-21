@@ -1,5 +1,22 @@
-// Retrieve and populate saved settings when popup opens
+// Tab switching functionality
 document.addEventListener('DOMContentLoaded', () => {
+  // Tab switching
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+  
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      // Remove active class from all buttons and contents
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      // Add active class to clicked button and corresponding content
+      button.classList.add('active');
+      const tabId = `${button.getAttribute('data-tab')}-tab`;
+      document.getElementById(tabId).classList.add('active');
+    });
+  });
+  
   // Get scenario select dropdowns
   const scenarioSelects = document.querySelectorAll('.scenario-select');
   
@@ -30,11 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
       varianceThreshold: '',
       varianceHighlightEnabled: false,
       calculatorEnabled: true, // Default to true
-      showTotalOnlyEnabled: false // Default for the new toggle
+      showTotalOnlyEnabled: false // Default for the toggle
     }, (settings) => {
       document.getElementById('color-gradient-toggle').checked = settings.colorGradientEnabled;
-      document.getElementById('calculator-toggle').checked = settings.calculatorEnabled; // Set checkbox state
-      document.getElementById('show-total-only-toggle').checked = settings.showTotalOnlyEnabled; // Set new checkbox state
+      document.getElementById('calculator-toggle').checked = settings.calculatorEnabled;
+      document.getElementById('show-total-only-toggle').checked = settings.showTotalOnlyEnabled;
       document.getElementById('variance1-minuend').value = settings.variance1.minuend;
       document.getElementById('variance1-subtrahend').value = settings.variance1.subtrahend;
       document.getElementById('variance2-minuend').value = settings.variance2.minuend;
@@ -83,7 +100,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-// Event listener for the new "Show Total Only" toggle
+// Event listener for the "Show Total Only" toggle
 document.getElementById('show-total-only-toggle').addEventListener('change', (e) => {
   const enabled = e.target.checked;
   chrome.storage.sync.set({ showTotalOnlyEnabled: enabled });
@@ -151,8 +168,8 @@ document.getElementById('save').addEventListener('click', () => {
   chrome.storage.sync.set({
     ...settings,
     colorGradientEnabled: document.getElementById('color-gradient-toggle').checked,
-    calculatorEnabled: document.getElementById('calculator-toggle').checked, // Include in saved settings
-    showTotalOnlyEnabled: document.getElementById('show-total-only-toggle').checked, // Include new toggle in saved settings
+    calculatorEnabled: document.getElementById('calculator-toggle').checked,
+    showTotalOnlyEnabled: document.getElementById('show-total-only-toggle').checked,
     varianceThreshold: document.getElementById('variance-threshold').value
   }, () => {
     chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
