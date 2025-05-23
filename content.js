@@ -1031,11 +1031,463 @@ function clearComparisonSelections() {
   updateCompareButton();
 }
 
-// Perform comparison (placeholder for now)
+// Perform comparison
 function performComparison() {
   console.log('Performing comparison with:', comparisonSelectedCells);
-  // TODO: Implement actual comparison logic in Phase 2
-  alert('Comparison feature coming soon! This will open both datasheets and compare the data.');
+  
+  if (comparisonSelectionOrder.length < 2) {
+    alert('Please select two cells to compare.');
+    return;
+  }
+  
+  // Get URLs from selected cells
+  const cell1 = comparisonSelectionOrder[0];
+  const cell2 = comparisonSelectionOrder[1];
+  const cell1Data = comparisonSelectedCells.get(cell1);
+  const cell2Data = comparisonSelectedCells.get(cell2);
+  
+  // Show loading indicator
+  showComparisonLoadingIndicator();
+  
+  // Start sequential data scraping
+  openDatasheetSequentially(cell1Data, cell2Data)
+    .then(comparisonData => {
+      // Hide loading indicator
+      hideComparisonLoadingIndicator();
+      
+      // Show comparison modal with data
+      showComparisonModal(comparisonData);
+    })
+    .catch(error => {
+      // Hide loading indicator
+      hideComparisonLoadingIndicator();
+      
+      // Show error message
+      console.error('Comparison error:', error);
+      alert('Error comparing datasheets: ' + error.message);
+    });
+}
+
+// Show loading indicator
+function showComparisonLoadingIndicator() {
+  // Remove any existing loading indicator
+  hideComparisonLoadingIndicator();
+  
+  // Create loading indicator
+  const loadingIndicator = document.createElement('div');
+  loadingIndicator.className = 'betterbudgyt-loading-indicator';
+  loadingIndicator.innerHTML = `
+    <div class="betterbudgyt-loading-spinner"></div>
+    <div class="betterbudgyt-loading-text">Loading comparison data...</div>
+  `;
+  
+  // Add to document
+  document.body.appendChild(loadingIndicator);
+}
+
+// Hide loading indicator
+function hideComparisonLoadingIndicator() {
+  const loadingIndicator = document.querySelector('.betterbudgyt-loading-indicator');
+  if (loadingIndicator) {
+    loadingIndicator.remove();
+  }
+}
+
+// Open datasheets sequentially and scrape data
+async function openDatasheetSequentially(cell1Data, cell2Data) {
+  // Create result object
+  const comparisonData = {
+    dataset1: {
+      accountName: cell1Data.description,
+      dataType: cell1Data.columnType,
+      url: cell1Data.url,
+      transactions: [],
+      totals: {}
+    },
+    dataset2: {
+      accountName: cell2Data.description,
+      dataType: cell2Data.columnType,
+      url: cell2Data.url,
+      transactions: [],
+      totals: {}
+    }
+  };
+  
+  // Create iframe for scraping (hidden)
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.top = '-9999px';
+  iframe.style.left = '-9999px';
+  iframe.style.width = '1200px';
+  iframe.style.height = '800px';
+  document.body.appendChild(iframe);
+  
+  try {
+    // Load first datasheet
+    console.log('Loading first datasheet:', cell1Data.url);
+    comparisonData.dataset1 = await loadDatasheetInIframe(iframe, cell1Data.url, cell1Data.description, cell1Data.columnType);
+    
+    // Load second datasheet
+    console.log('Loading second datasheet:', cell2Data.url);
+    comparisonData.dataset2 = await loadDatasheetInIframe(iframe, cell2Data.url, cell2Data.description, cell2Data.columnType);
+    
+    return comparisonData;
+  } finally {
+    // Clean up iframe
+    iframe.remove();
+  }
+}
+
+// Load datasheet in iframe and scrape data
+function loadDatasheetInIframe(iframe, url, accountName, dataType) {
+  return new Promise((resolve, reject) => {
+    // Set timeout for loading
+    const timeout = setTimeout(() => {
+      reject(new Error('Timeout loading datasheet'));
+    }, 30000); // 30 second timeout
+    
+    // Full URL
+    const fullUrl = window.location.origin + url;
+    
+    // Load URL in iframe
+    iframe.src = fullUrl;
+    
+    // Wait for iframe to load
+    iframe.onload = () => {
+      try {
+        clearTimeout(timeout);
+        
+        // Wait for table to be fully loaded
+        setTimeout(() => {
+          try {
+            // Scrape data from iframe
+            const data = scrapeDatasheetData(iframe.contentDocument, accountName, dataType);
+            resolve(data);
+          } catch (error) {
+            reject(new Error('Error scraping datasheet: ' + error.message));
+          }
+        }, 2000); // Wait 2 seconds for table to load
+      } catch (error) {
+        clearTimeout(timeout);
+        reject(new Error('Error loading datasheet: ' + error.message));
+      }
+    };
+    
+    // Handle iframe load errors
+    iframe.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error('Failed to load datasheet'));
+    };
+  });
+}
+
+// Scrape datasheet data from document
+function scrapeDatasheetData(doc, accountName, dataType) {
+  // Result object
+  const result = {
+    accountName,
+    dataType,
+    transactions: [],
+    totals: {}
+  };
+  
+  try {
+    // Find title row
+    const titleRow = doc.querySelector('tr[data-level="2"].showyear.level2');
+    if (titleRow) {
+      // Extract account name from title if not provided
+      if (!accountName) {
+        const titleCell = titleRow.querySelector('td[title]');
+        if (titleCell) {
+          result.accountName = titleCell.getAttribute('title').trim();
+        }
+      }
+    }
+    
+    // Find transaction rows
+    const transactionRows = doc.querySelectorAll('tr[data-level="3"].budgetdata.bottomLevel');
+    transactionRows.forEach(row => {
+      const transaction = extractTransactionData(row);
+      if (transaction) {
+        result.transactions.push(transaction);
+      }
+    });
+    
+    // Find total row
+    const totalRow = doc.querySelector('tr[data-level="3"].totals');
+    if (totalRow) {
+      result.totals = extractTotalData(totalRow);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error scraping datasheet:', error);
+    throw new Error('Failed to scrape datasheet data');
+  }
+}
+
+// Extract transaction data from row
+function extractTransactionData(row) {
+  try {
+    // Get description
+    const descCell = row.querySelector('td .label');
+    const description = descCell ? 
+      (descCell.querySelector('.desc-field') ? 
+        descCell.querySelector('.desc-field').textContent.trim() : 
+        descCell.textContent.trim()) : 
+      'Unknown';
+    
+    // Get vendor
+    const vendorCell = row.querySelector('.vendor');
+    const vendor = vendorCell ? vendorCell.textContent.trim() : '';
+    
+    // Get monthly values
+    const monthly = {};
+    const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    
+    months.forEach((month, index) => {
+      const periodNum = index + 1;
+      // Try both formats: with and without leading zero
+      const periodStrWithZero = periodNum < 10 ? `P0${periodNum}` : `P${periodNum}`;
+      const periodStrNoZero = `P${periodNum}`;
+      
+      // First try with the format used in transaction rows (P1, P2, etc.)
+      let dataCell = row.querySelector(`td.data[data-period="${periodStrNoZero}"]`);
+      
+      // If not found, try with the format used in headers (P01, P02, etc.)
+      if (!dataCell) {
+        dataCell = row.querySelector(`td.data[data-period="${periodStrWithZero}"]`);
+      }
+      
+      // Also try with title attribute as fallback
+      if (!dataCell) {
+        dataCell = row.querySelector(`td.data[title="${month}"]`);
+      }
+      
+      if (dataCell) {
+        const valueSpan = dataCell.querySelector('span[data-value]');
+        if (valueSpan) {
+          const value = valueSpan.getAttribute('data-value');
+          monthly[month] = parseFloat(value.replace(/,/g, '')) || 0;
+        } else {
+          const valueText = dataCell.textContent.trim();
+          monthly[month] = parseFloat(valueText.replace(/,/g, '')) || 0;
+        }
+      } else {
+        monthly[month] = 0;
+      }
+    });
+    
+    // Get total
+    const totalCell = row.querySelector('td.data.DATValueTotalF');
+    let total = 0;
+    if (totalCell) {
+      const totalSpan = totalCell.querySelector('span[data-value]');
+      if (totalSpan) {
+        total = parseFloat(totalSpan.getAttribute('data-value').replace(/,/g, '')) || 0;
+      } else {
+        total = parseFloat(totalCell.textContent.replace(/,/g, '')) || 0;
+      }
+    } else {
+      // Calculate total from monthly values if not found
+      total = Object.values(monthly).reduce((sum, val) => sum + val, 0);
+    }
+    
+    return {
+      description,
+      vendor,
+      monthly,
+      total
+    };
+  } catch (error) {
+    console.error('Error extracting transaction data:', error);
+    return null;
+  }
+}
+
+// Extract total data from row
+function extractTotalData(row) {
+  try {
+    const totals = {};
+    const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    
+    months.forEach((month, index) => {
+      const periodNum = index + 1;
+      // Try both formats: with and without leading zero
+      const periodStrWithZero = periodNum < 10 ? `P0${periodNum}` : `P${periodNum}`;
+      const periodStrNoZero = `P${periodNum}`;
+      
+      // First try with the format used in transaction rows (P1, P2, etc.)
+      let dataCell = row.querySelector(`td.data[data-period="${periodStrNoZero}"]`);
+      
+      // If not found, try with the format used in headers (P01, P02, etc.)
+      if (!dataCell) {
+        dataCell = row.querySelector(`td.data[data-period="${periodStrWithZero}"]`);
+      }
+      
+      // Also try with title attribute as fallback
+      if (!dataCell) {
+        dataCell = row.querySelector(`td.data[title="${month}"]`);
+      }
+      
+      if (dataCell) {
+        const valueSpan = dataCell.querySelector('span');
+        if (valueSpan && valueSpan.hasAttribute('data-value')) {
+          const value = valueSpan.getAttribute('data-value');
+          totals[month] = parseFloat(value.replace(/,/g, '')) || 0;
+        } else if (valueSpan) {
+          const value = valueSpan.textContent.trim();
+          totals[month] = parseFloat(value.replace(/,/g, '')) || 0;
+        } else {
+          const valueText = dataCell.textContent.trim();
+          totals[month] = parseFloat(valueText.replace(/,/g, '')) || 0;
+        }
+      } else {
+        totals[month] = 0;
+      }
+    });
+    
+    // Get total
+    const totalCell = row.querySelector('td.data.DATValueTotalF');
+    if (totalCell) {
+      const totalSpan = totalCell.querySelector('span');
+      if (totalSpan) {
+        totals.total = parseFloat(totalSpan.textContent.replace(/,/g, '')) || 0;
+      } else {
+        totals.total = parseFloat(totalCell.textContent.replace(/,/g, '')) || 0;
+      }
+    } else {
+      // Calculate total from monthly values if not found
+      totals.total = Object.values(totals).reduce((sum, val) => sum + val, 0);
+    }
+    
+    return totals;
+  } catch (error) {
+    console.error('Error extracting total data:', error);
+    return {};
+  }
+}
+
+// Show comparison modal
+function showComparisonModal(comparisonData) {
+  // Remove any existing modal
+  const existingModal = document.querySelector('.betterbudgyt-comparison-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'betterbudgyt-comparison-modal';
+  
+  // Create modal content
+  modal.innerHTML = `
+    <div class="betterbudgyt-comparison-modal-content">
+      <div class="betterbudgyt-comparison-modal-header">
+        <h2>Datasheet Comparison</h2>
+        <button class="betterbudgyt-comparison-modal-close">&times;</button>
+      </div>
+      <div class="betterbudgyt-comparison-modal-body">
+        <div class="betterbudgyt-comparison-info">
+          <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-1">
+            <h3>${comparisonData.dataset1.accountName} - ${comparisonData.dataset1.dataType}</h3>
+            <p>Transactions: ${comparisonData.dataset1.transactions.length}</p>
+            <p>Total: ${formatNumber(comparisonData.dataset1.totals.total || 0)}</p>
+          </div>
+          <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-2">
+            <h3>${comparisonData.dataset2.accountName} - ${comparisonData.dataset2.dataType}</h3>
+            <p>Transactions: ${comparisonData.dataset2.transactions.length}</p>
+            <p>Total: ${formatNumber(comparisonData.dataset2.totals.total || 0)}</p>
+          </div>
+        </div>
+        <div class="betterbudgyt-comparison-table-container">
+          ${generateComparisonTable(comparisonData)}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add to document
+  document.body.appendChild(modal);
+  
+  // Add event listener for close button
+  modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
+    modal.remove();
+  });
+  
+  // Close modal when clicking outside
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+// Generate comparison table HTML
+function generateComparisonTable(comparisonData) {
+  const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+  
+  // Combine all transactions for display
+  const allTransactions = [
+    ...comparisonData.dataset1.transactions.map(t => ({ ...t, dataset: 1 })),
+    ...comparisonData.dataset2.transactions.map(t => ({ ...t, dataset: 2 }))
+  ];
+  
+  // Generate table HTML
+  let tableHtml = `
+    <table class="betterbudgyt-comparison-table">
+      <thead>
+        <tr>
+          <th>Dataset</th>
+          <th>Description</th>
+          <th>Vendor</th>
+          ${months.map(month => `<th>${month}</th>`).join('')}
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  
+  // Add transaction rows
+  allTransactions.forEach(transaction => {
+    const datasetClass = transaction.dataset === 1 ? 
+      'betterbudgyt-comparison-row-dataset-1' : 
+      'betterbudgyt-comparison-row-dataset-2';
+    
+    tableHtml += `
+      <tr class="${datasetClass}">
+        <td>${transaction.dataset === 1 ? comparisonData.dataset1.dataType : comparisonData.dataset2.dataType}</td>
+        <td>${transaction.description}</td>
+        <td>${transaction.vendor}</td>
+        ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+        <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
+      </tr>
+    `;
+  });
+  
+  // Add total rows
+  tableHtml += `
+    <tr class="betterbudgyt-comparison-row-total betterbudgyt-comparison-row-dataset-1">
+      <td>${comparisonData.dataset1.dataType}</td>
+      <td colspan="2">TOTAL</td>
+      ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(comparisonData.dataset1.totals[month] || 0)}</td>`).join('')}
+      <td class="betterbudgyt-comparison-total">${formatNumber(comparisonData.dataset1.totals.total || 0)}</td>
+    </tr>
+    <tr class="betterbudgyt-comparison-row-total betterbudgyt-comparison-row-dataset-2">
+      <td>${comparisonData.dataset2.dataType}</td>
+      <td colspan="2">TOTAL</td>
+      ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(comparisonData.dataset2.totals[month] || 0)}</td>`).join('')}
+      <td class="betterbudgyt-comparison-total">${formatNumber(comparisonData.dataset2.totals.total || 0)}</td>
+    </tr>
+  `;
+  
+  // Close table
+  tableHtml += `
+      </tbody>
+    </table>
+  `;
+  
+  return tableHtml;
 }
 
 // Global click handler for table cells
