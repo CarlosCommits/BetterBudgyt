@@ -210,6 +210,187 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   background-color: #5a6268;
 }
 
+/* Loading Indicator */
+.betterbudgyt-loading-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.betterbudgyt-loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #4CAF50;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+.betterbudgyt-loading-text {
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Comparison Modal */
+.betterbudgyt-comparison-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.betterbudgyt-comparison-modal-content {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.betterbudgyt-comparison-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.betterbudgyt-comparison-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.betterbudgyt-comparison-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+}
+
+.betterbudgyt-comparison-modal-close:hover {
+  color: #333;
+}
+
+.betterbudgyt-comparison-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(90vh - 60px);
+}
+
+.betterbudgyt-comparison-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.betterbudgyt-comparison-dataset {
+  padding: 15px;
+  border-radius: 6px;
+  width: 48%;
+}
+
+.betterbudgyt-comparison-dataset h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.betterbudgyt-comparison-dataset p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.betterbudgyt-comparison-dataset-1 {
+  background-color: rgba(74, 144, 226, 0.1);
+  border-left: 4px solid #4A90E2;
+}
+
+.betterbudgyt-comparison-dataset-2 {
+  background-color: rgba(126, 211, 33, 0.1);
+  border-left: 4px solid #7ED321;
+}
+
+.betterbudgyt-comparison-table-container {
+  overflow-x: auto;
+}
+
+.betterbudgyt-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.betterbudgyt-comparison-table th,
+.betterbudgyt-comparison-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.betterbudgyt-comparison-table th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.betterbudgyt-comparison-value,
+.betterbudgyt-comparison-total {
+  text-align: right;
+}
+
+.betterbudgyt-comparison-total {
+  font-weight: bold;
+}
+
+.betterbudgyt-comparison-row-dataset-1 {
+  background-color: rgba(74, 144, 226, 0.05);
+}
+
+.betterbudgyt-comparison-row-dataset-2 {
+  background-color: rgba(126, 211, 33, 0.05);
+}
+
+.betterbudgyt-comparison-row-total {
+  font-weight: bold;
+}
+
+.betterbudgyt-comparison-row-total.betterbudgyt-comparison-row-dataset-1 {
+  background-color: rgba(74, 144, 226, 0.15);
+}
+
+.betterbudgyt-comparison-row-total.betterbudgyt-comparison-row-dataset-2 {
+  background-color: rgba(126, 211, 33, 0.15);
+}
+
 /* Sum Panel Styles */
 .betterbudgyt-sum-panel {
     position: fixed;
