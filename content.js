@@ -289,8 +289,13 @@ function initializeVarianceHeaders() {
 }
 
 
-// Global variable for calculator state
+// Global variables for calculator and comparison mode states
 let calculatorEnabled = true;
+let comparisonModeEnabled = false;
+
+// Store selected cells for comparison mode
+let comparisonSelectedCells = new Map();
+let comparisonSelectionOrder = [];
 
 // Store current settings
 let currentSettings = {
@@ -320,7 +325,8 @@ chrome.storage.sync.get({
   colorGradientEnabled: true,
   varianceThreshold: '',
   varianceHighlightEnabled: false,
-  calculatorEnabled: true // Default to true
+  calculatorEnabled: true, // Default to true
+  comparisonModeEnabled: false // Default to false
 }, async (settings) => {
   currentSettings = { // Explicitly set currentSettings, excluding calculatorEnabled
     variance1: settings.variance1,
@@ -330,6 +336,7 @@ chrome.storage.sync.get({
     varianceHighlightEnabled: settings.varianceHighlightEnabled
   };
   calculatorEnabled = settings.calculatorEnabled; // Set global variable
+  comparisonModeEnabled = settings.comparisonModeEnabled; // Set comparison mode variable
 
   updateVarianceCalculations();
   await updateVarianceHeaders(); // Update headers when settings are loaded
@@ -366,6 +373,25 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       
       // Update the sum panel (to clear its display, even if hidden)
       updateSumPanel();
+    }
+  } else if (message.type === 'TOGGLE_COMPARISON_MODE') {
+    comparisonModeEnabled = message.enabled;
+    if (!comparisonModeEnabled) {
+      // Remove compare button if it exists
+      const compareButton = document.querySelector('.betterbudgyt-compare-button');
+      if (compareButton) {
+        compareButton.remove();
+      }
+      
+      // Clear comparison selections
+      comparisonSelectedCells.clear();
+      comparisonSelectionOrder = [];
+      
+      // Remove comparison highlighting
+      const comparisonCells = document.querySelectorAll('.betterbudgyt-compare-cell-1, .betterbudgyt-compare-cell-2');
+      comparisonCells.forEach(cell => {
+        cell.classList.remove('betterbudgyt-compare-cell-1', 'betterbudgyt-compare-cell-2');
+      });
     }
   }
   // Send response after async operations complete
@@ -837,6 +863,181 @@ function updateSumPanel() {
   panel.querySelector('#sumTotal').textContent = formatNumber(total);
 }
 
+// Check if a cell has a datasheet link
+function hasDatasheetLink(cell) {
+  return cell.querySelector('a.linkToDataPage') !== null;
+}
+
+// Get datasheet URL from cell
+function getDatasheetUrl(cell) {
+  const link = cell.querySelector('a.linkToDataPage');
+  return link ? link.getAttribute('data-href') : null;
+}
+
+// Get column type from cell
+function getColumnType(cell) {
+  if (cell.classList.contains('actual-budgetVal')) return 'Actuals';
+  if (cell.classList.contains('compare-budgetVal')) return 'Budget';
+  if (cell.classList.contains('actual-budgetLYVal')) return 'Previous Year';
+  return 'Unknown';
+}
+
+// Handle comparison mode cell selection
+function handleComparisonModeClick(cell) {
+  // Only allow selection of cells with datasheet links
+  if (!hasDatasheetLink(cell)) {
+    return;
+  }
+
+  // Remove orange highlighting if present
+  cell.classList.remove('betterbudgyt-cell-selected');
+
+  // Check if cell is already selected
+  if (comparisonSelectedCells.has(cell)) {
+    // Remove from selection
+    comparisonSelectedCells.delete(cell);
+    comparisonSelectionOrder = comparisonSelectionOrder.filter(c => c !== cell);
+    cell.classList.remove('betterbudgyt-compare-cell-1', 'betterbudgyt-compare-cell-2');
+  } else {
+    // Add to selection
+    if (comparisonSelectionOrder.length >= 2) {
+      // Remove oldest selection
+      const oldestCell = comparisonSelectionOrder.shift();
+      comparisonSelectedCells.delete(oldestCell);
+      oldestCell.classList.remove('betterbudgyt-compare-cell-1', 'betterbudgyt-compare-cell-2');
+    }
+
+    // Add new selection
+    comparisonSelectionOrder.push(cell);
+    const selectionIndex = comparisonSelectionOrder.length;
+    
+    // Get cell data
+    const row = cell.closest('tr');
+    const descriptionCell = row.querySelector('td[style*="z-index: 1"]');
+    const description = descriptionCell ? descriptionCell.textContent.trim() : 'Unknown';
+    const value = parseFloat(cell.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+    const url = getDatasheetUrl(cell);
+    const columnType = getColumnType(cell);
+
+    comparisonSelectedCells.set(cell, {
+      description,
+      value,
+      url,
+      columnType,
+      selectionIndex
+    });
+
+    // Apply highlighting
+    cell.classList.add(`betterbudgyt-compare-cell-${selectionIndex}`);
+  }
+
+  // Update compare button
+  updateCompareButton();
+}
+
+// Create compare button
+function createCompareButton() {
+  if (!comparisonModeEnabled) return;
+
+  const button = document.createElement('div');
+  button.className = 'betterbudgyt-compare-button';
+  
+  button.innerHTML = `
+    <div class="betterbudgyt-compare-button-header">
+      <div class="betterbudgyt-compare-button-title">Compare Datasheets</div>
+    </div>
+    <div class="betterbudgyt-compare-selections">
+      <div class="betterbudgyt-compare-selection betterbudgyt-compare-selection-1">
+        <div class="betterbudgyt-compare-selection-indicator"></div>
+        <div class="betterbudgyt-compare-selection-text" id="selection-1-text">Select first cell...</div>
+      </div>
+      <div class="betterbudgyt-compare-selection betterbudgyt-compare-selection-2">
+        <div class="betterbudgyt-compare-selection-indicator"></div>
+        <div class="betterbudgyt-compare-selection-text" id="selection-2-text">Select second cell...</div>
+      </div>
+    </div>
+    <div class="betterbudgyt-compare-actions">
+      <button class="betterbudgyt-compare-btn betterbudgyt-compare-btn-secondary" id="clearCompare">Clear</button>
+      <button class="betterbudgyt-compare-btn betterbudgyt-compare-btn-primary" id="compareDatasheets" disabled>Compare</button>
+    </div>
+  `;
+
+  // Add button to document
+  document.body.appendChild(button);
+
+  // Add event listeners
+  button.querySelector('#clearCompare').addEventListener('click', () => {
+    clearComparisonSelections();
+  });
+
+  button.querySelector('#compareDatasheets').addEventListener('click', () => {
+    performComparison();
+  });
+
+  return button;
+}
+
+// Update compare button content
+function updateCompareButton() {
+  let button = document.querySelector('.betterbudgyt-compare-button');
+  
+  if (comparisonSelectionOrder.length === 0) {
+    // Remove button if no selections
+    if (button) {
+      button.remove();
+    }
+    return;
+  }
+
+  // Create button if it doesn't exist
+  if (!button) {
+    button = createCompareButton();
+  }
+
+  // Update selection texts
+  const selection1Text = button.querySelector('#selection-1-text');
+  const selection2Text = button.querySelector('#selection-2-text');
+  const compareBtn = button.querySelector('#compareDatasheets');
+
+  if (comparisonSelectionOrder.length >= 1) {
+    const cell1Data = comparisonSelectedCells.get(comparisonSelectionOrder[0]);
+    selection1Text.textContent = `${cell1Data.description} - ${cell1Data.columnType}`;
+  } else {
+    selection1Text.textContent = 'Select first cell...';
+  }
+
+  if (comparisonSelectionOrder.length >= 2) {
+    const cell2Data = comparisonSelectedCells.get(comparisonSelectionOrder[1]);
+    selection2Text.textContent = `${cell2Data.description} - ${cell2Data.columnType}`;
+    compareBtn.disabled = false;
+  } else {
+    selection2Text.textContent = 'Select second cell...';
+    compareBtn.disabled = true;
+  }
+}
+
+// Clear comparison selections
+function clearComparisonSelections() {
+  comparisonSelectedCells.clear();
+  comparisonSelectionOrder = [];
+  
+  // Remove highlighting
+  const comparisonCells = document.querySelectorAll('.betterbudgyt-compare-cell-1, .betterbudgyt-compare-cell-2');
+  comparisonCells.forEach(cell => {
+    cell.classList.remove('betterbudgyt-compare-cell-1', 'betterbudgyt-compare-cell-2');
+  });
+
+  // Update button
+  updateCompareButton();
+}
+
+// Perform comparison (placeholder for now)
+function performComparison() {
+  console.log('Performing comparison with:', comparisonSelectedCells);
+  // TODO: Implement actual comparison logic in Phase 2
+  alert('Comparison feature coming soon! This will open both datasheets and compare the data.');
+}
+
 // Global click handler for table cells
 document.addEventListener('click', (event) => {
   // First check if click is within a table that has both classes
@@ -863,6 +1064,14 @@ document.addEventListener('click', (event) => {
   event.preventDefault();
   event.stopPropagation();
 
+  
+ // Handle comparison mode
+  if (comparisonModeEnabled) {
+    handleComparisonModeClick(cell);
+    return;
+  }
+
+  // Handle calculator mode (existing logic)
   // Toggle cell selection - This should happen regardless of calculatorEnabled
   cell.classList.toggle('betterbudgyt-cell-selected');
 
