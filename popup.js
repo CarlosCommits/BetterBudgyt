@@ -47,11 +47,13 @@ document.addEventListener('DOMContentLoaded', () => {
       varianceThreshold: '',
       varianceHighlightEnabled: false,
       calculatorEnabled: true, // Default to true
-      showTotalOnlyEnabled: false // Default for the toggle
+      showTotalOnlyEnabled: false, // Default for the toggle
+      comparisonModeEnabled: false // Default for comparison mode
     }, (settings) => {
       document.getElementById('color-gradient-toggle').checked = settings.colorGradientEnabled;
       document.getElementById('calculator-toggle').checked = settings.calculatorEnabled;
       document.getElementById('show-total-only-toggle').checked = settings.showTotalOnlyEnabled;
+      document.getElementById('comparison-mode-toggle').checked = settings.comparisonModeEnabled;
       document.getElementById('variance1-minuend').value = settings.variance1.minuend;
       document.getElementById('variance1-subtrahend').value = settings.variance1.subtrahend;
       document.getElementById('variance2-minuend').value = settings.variance2.minuend;
@@ -68,10 +70,48 @@ document.addEventListener('DOMContentLoaded', () => {
 // Calculator toggle event listener
 document.getElementById('calculator-toggle').addEventListener('change', (e) => {
   const enabled = e.target.checked;
+  
+  // If calculator is being enabled, disable comparison mode
+  if (enabled) {
+    document.getElementById('comparison-mode-toggle').checked = false;
+    chrome.storage.sync.set({ comparisonModeEnabled: false });
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        type: 'TOGGLE_COMPARISON_MODE',
+        enabled: false
+      });
+    });
+  }
+  
   chrome.storage.sync.set({ calculatorEnabled: enabled });
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
     chrome.tabs.sendMessage(tabs[0].id, {
       type: 'TOGGLE_CALCULATOR',
+      enabled: enabled
+    });
+  });
+});
+
+// Comparison mode toggle event listener
+document.getElementById('comparison-mode-toggle').addEventListener('change', (e) => {
+  const enabled = e.target.checked;
+  
+  // If comparison mode is being enabled, disable calculator
+  if (enabled) {
+    document.getElementById('calculator-toggle').checked = false;
+    chrome.storage.sync.set({ calculatorEnabled: false });
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        type: 'TOGGLE_CALCULATOR',
+        enabled: false
+      });
+    });
+  }
+  
+  chrome.storage.sync.set({ comparisonModeEnabled: enabled });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'TOGGLE_COMPARISON_MODE',
       enabled: enabled
     });
   });
@@ -170,6 +210,7 @@ document.getElementById('save').addEventListener('click', () => {
     colorGradientEnabled: document.getElementById('color-gradient-toggle').checked,
     calculatorEnabled: document.getElementById('calculator-toggle').checked,
     showTotalOnlyEnabled: document.getElementById('show-total-only-toggle').checked,
+    comparisonModeEnabled: document.getElementById('comparison-mode-toggle').checked,
     varianceThreshold: document.getElementById('variance-threshold').value
   }, () => {
     chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
