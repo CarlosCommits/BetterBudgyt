@@ -1093,6 +1093,41 @@ function hideComparisonLoadingIndicator() {
   }
 }
 
+// Wait for datasheet table to be fully loaded
+function waitForDatasheetTable(doc, callback, maxAttempts = 40) { // Longer timeout for iframes
+  let attempts = 0;
+  
+  function checkDatasheetTable() {
+    const table = doc.querySelector('table');
+    const transactionRows = doc.querySelectorAll('tr[data-level="3"].budgetdata.bottomLevel');
+    const totalRow = doc.querySelector('tr[data-level="3"].totals');
+    const titleRow = doc.querySelector('tr[data-level="2"].showyear.level2');
+    const dataCells = doc.querySelectorAll('td.data[data-period], td.data[title]');
+    
+    console.log('Checking datasheet table elements:', {
+      attempt: attempts + 1,
+      tablePresent: !!table,
+      transactionRowsCount: transactionRows.length,
+      totalRowPresent: !!totalRow,
+      titleRowPresent: !!titleRow,
+      dataCellsCount: dataCells.length
+    });
+    
+    if (table && transactionRows.length > 0 && totalRow && titleRow && dataCells.length > 0) {
+      // All required elements are loaded
+      console.log('Datasheet table fully loaded with all required elements');
+      callback();
+    } else if (attempts < maxAttempts) {
+      attempts++;
+      setTimeout(checkDatasheetTable, 500);
+    } else {
+      throw new Error('Timeout waiting for datasheet table elements to load');
+    }
+  }
+  
+  checkDatasheetTable();
+}
+
 // Open datasheets sequentially and scrape data
 async function openDatasheetSequentially(cell1Data, cell2Data) {
   // Create result object
@@ -1113,13 +1148,13 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
     }
   };
   
-  // Create iframe for scraping (hidden)
+  // Create iframe for scraping (hidden) with full HD dimensions
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.top = '-9999px';
   iframe.style.left = '-9999px';
-  iframe.style.width = '1200px';
-  iframe.style.height = '800px';
+  iframe.style.width = '1920px';  // Full HD width
+  iframe.style.height = '1080px'; // Full HD height
   document.body.appendChild(iframe);
   
   try {
@@ -1138,16 +1173,27 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
   }
 }
 
-// Load datasheet in iframe and scrape data
-function loadDatasheetInIframe(iframe, url, accountName, dataType) {
+// Load datasheet in iframe and scrape data with retry mechanism
+function loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount = 0, maxRetries = 3) {
   return new Promise((resolve, reject) => {
-    // Set timeout for loading
+    // Set timeout for loading (increases with each retry)
+    const timeoutDuration = 60000 + (retryCount * 30000); // Start with 60s, add 30s per retry
     const timeout = setTimeout(() => {
-      reject(new Error('Timeout loading datasheet'));
-    }, 30000); // 30 second timeout
+      if (retryCount < maxRetries) {
+        console.warn(`Timeout loading datasheet, retrying (${retryCount + 1}/${maxRetries})...`);
+        resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
+      } else {
+        reject(new Error(`Timeout loading datasheet after ${maxRetries} attempts`));
+      }
+    }, timeoutDuration);
     
-    // Full URL
-    const fullUrl = window.location.origin + url;
+    // Full URL with cache-busting parameter for retries
+    let fullUrl = window.location.origin + url;
+    if (retryCount > 0) {
+      fullUrl += (fullUrl.includes('?') ? '&' : '?') + 'forceRefresh=' + Date.now() + '&retry=' + retryCount;
+    }
+    
+    console.log(`Loading datasheet (attempt ${retryCount + 1}/${maxRetries + 1}):`, fullUrl);
     
     // Load URL in iframe
     iframe.src = fullUrl;
@@ -1157,26 +1203,74 @@ function loadDatasheetInIframe(iframe, url, accountName, dataType) {
       try {
         clearTimeout(timeout);
         
-        // Wait for table to be fully loaded
-        setTimeout(() => {
-          try {
-            // Scrape data from iframe
-            const data = scrapeDatasheetData(iframe.contentDocument, accountName, dataType);
-            resolve(data);
-          } catch (error) {
-            reject(new Error('Error scraping datasheet: ' + error.message));
+        // Wait for table to be fully loaded with all required elements
+        try {
+          waitForDatasheetTable(iframe.contentDocument, () => {
+            try {
+              // Scrape data from iframe
+              const data = scrapeDatasheetData(iframe.contentDocument, accountName, dataType);
+              
+              // Validate scraped data
+              if (!data || !data.transactions || data.transactions.length === 0) {
+                console.warn(`Scraped data is empty or invalid (attempt ${retryCount + 1}/${maxRetries + 1})`);
+                
+                if (retryCount < maxRetries) {
+                  console.log(`Retrying with forced refresh (${retryCount + 1}/${maxRetries})...`);
+                  resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
+                } else {
+                  reject(new Error(`Failed to get valid data after ${maxRetries + 1} attempts`));
+                }
+                return;
+              }
+              
+              // Success - log and resolve
+              console.log(`Successfully loaded datasheet on attempt ${retryCount + 1}/${maxRetries + 1}`);
+              resolve(data);
+            } catch (error) {
+              console.error(`Error scraping datasheet (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+              
+              if (retryCount < maxRetries) {
+                console.log(`Retrying after scraping error (${retryCount + 1}/${maxRetries})...`);
+                resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
+              } else {
+                reject(new Error(`Error scraping datasheet after ${maxRetries + 1} attempts: ${error.message}`));
+              }
+            }
+          });
+        } catch (error) {
+          console.error(`Error waiting for datasheet table (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+          
+          if (retryCount < maxRetries) {
+            console.log(`Retrying after table wait error (${retryCount + 1}/${maxRetries})...`);
+            resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
+          } else {
+            reject(new Error(`Error waiting for datasheet table after ${maxRetries + 1} attempts: ${error.message}`));
           }
-        }, 2000); // Wait 2 seconds for table to load
+        }
       } catch (error) {
         clearTimeout(timeout);
-        reject(new Error('Error loading datasheet: ' + error.message));
+        console.error(`Error in iframe onload (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+        
+        if (retryCount < maxRetries) {
+          console.log(`Retrying after onload error (${retryCount + 1}/${maxRetries})...`);
+          resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
+        } else {
+          reject(new Error(`Error loading datasheet after ${maxRetries + 1} attempts: ${error.message}`));
+        }
       }
     };
     
     // Handle iframe load errors
-    iframe.onerror = () => {
+    iframe.onerror = (error) => {
       clearTimeout(timeout);
-      reject(new Error('Failed to load datasheet'));
+      console.error(`Iframe load error (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+      
+      if (retryCount < maxRetries) {
+        console.log(`Retrying after iframe error (${retryCount + 1}/${maxRetries})...`);
+        resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
+      } else {
+        reject(new Error(`Failed to load datasheet after ${maxRetries + 1} attempts`));
+      }
     };
   });
 }
