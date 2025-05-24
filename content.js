@@ -953,11 +953,33 @@ function extractCellParameters(cell) {
   
   // Get the cell's data-href attribute if it has a link
   const link = cell.querySelector('a.linkToDataPage');
-  const dataHref = link ? link.getAttribute('data-href') : null;
+  let dataHref = link ? link.getAttribute('data-href') : null;
+  
+  // If no linkToDataPage found, try looking for any link with data-href
+  if (!dataHref) {
+    const anyLink = cell.querySelector('a[data-href]');
+    dataHref = anyLink ? anyLink.getAttribute('data-href') : null;
+    
+    if (dataHref) {
+      console.log('Found data-href from generic link:', dataHref);
+    }
+  }
   
   // If we have a data-href, try to extract parameters from it
   if (dataHref) {
     console.log('Found data-href:', dataHref);
+    
+    // Extract scenario ID from the data-href URL path
+    // Format is typically: /Budget/DataInput/86/2026 or similar
+    const pathMatch = dataHref.match(/\/Budget\/DataInput\/(\d+)\/(\d+)/);
+    let extractedScenarioId = null;
+    let extractedYear = null;
+    
+    if (pathMatch && pathMatch.length >= 3) {
+      extractedScenarioId = pathMatch[1];
+      extractedYear = pathMatch[2];
+      console.log(`Extracted scenario ID: ${extractedScenarioId}, year: ${extractedYear} from data-href`);
+    }
     
     try {
       // Extract parameters from the URL
@@ -990,17 +1012,32 @@ function extractCellParameters(cell) {
             // Determine column type
             const columnType = getColumnType(cell);
             
-            // Get scenario ID based on column type
-            const scenarioId = getScenarioId(columnType);
+            // Use extracted scenario ID if available, otherwise get from column type
+            const scenarioId = extractedScenarioId || getScenarioId(columnType);
             
             return {
               categoryUID,
               groupedcategory: hrefGroupedCategory,
               scenarioId,
-              columnType
+              columnType,
+              dataHref,
+              year: extractedYear
             };
           }
         }
+      } else if (extractedScenarioId) {
+        // If we have a scenario ID from the path but no query parameters
+        // Determine column type
+        const columnType = getColumnType(cell);
+        
+        return {
+          categoryUID,
+          groupedcategory: parentCategoryUID && categoryUID ? `${parentCategoryUID}|${categoryUID}` : null,
+          scenarioId: extractedScenarioId,
+          columnType,
+          dataHref,
+          year: extractedYear
+        };
       }
     } catch (error) {
       console.error('Error parsing data-href:', error);
@@ -1339,9 +1376,13 @@ function waitForDatasheetTable(doc, callback, maxAttempts = 40) { // Longer time
 }
 
 // Build AJAX parameters for datasheet request
-function buildAjaxParameters(categoryUID, groupedcategory) {
+function buildAjaxParameters(categoryUID, groupedcategory, scenarioId, year) {
   // Get timezone offset in minutes
   const localOffset = new Date().getTimezoneOffset();
+  
+  // Default values if not provided
+  const defaultScenarioId = '86'; // Default to Actuals
+  const defaultYear = '2026'; // Default year
   
   return {
     level: '2', // For transaction-level data
@@ -1356,7 +1397,9 @@ function buildAjaxParameters(categoryUID, groupedcategory) {
     showInGlobal: true,
     bsMode: '',
     categoryType: 'PL',
-    localoffset: localOffset.toString()
+    localoffset: localOffset.toString(),
+    scenarioId: scenarioId || defaultScenarioId,
+    year: year || defaultYear
   };
 }
 
@@ -1675,19 +1718,32 @@ function parseJsonResponse(jsonData, accountName, dataType) {
 }
 
 // Fetch datasheet data via AJAX
-async function fetchDatasheetData(parameters, accountName, dataType) {
+async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
   try {
     console.log('Fetching datasheet data with parameters:', parameters);
+    console.log('Using data-href for Referer:', dataHref);
+    
+    // Construct the full Referer URL
+    const baseUrl = window.location.origin; // e.g., https://theesa.budgyt.com
+    const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
+    
+    // Headers for the request
+    const headers = {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Accept': 'text/html, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest'
+      // Cookies are automatically included by the browser
+    };
+    
+    // Add Referer header if we have a data-href
+    if (refererUrl) {
+      headers['Referer'] = refererUrl;
+    }
     
     // Make POST request to GetRowData endpoint with JSON format
     const response = await fetch('/Budget/GetRowData', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Accept': 'text/html, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest'
-        // Cookies are automatically included by the browser
-      },
+      headers: headers,
       body: JSON.stringify(parameters)
     });
     
@@ -1879,17 +1935,49 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
       cell2: cell2Params
     });
     
-    // Build AJAX parameters
-    const ajaxParams1 = buildAjaxParameters(cell1Params.categoryUID, cell1Params.groupedcategory);
-    const ajaxParams2 = buildAjaxParameters(cell2Params.categoryUID, cell2Params.groupedcategory);
+    // Build AJAX parameters with scenario ID and year
+    const ajaxParams1 = buildAjaxParameters(
+      cell1Params.categoryUID, 
+      cell1Params.groupedcategory, 
+      cell1Params.scenarioId, 
+      cell1Params.year
+    );
+    
+    const ajaxParams2 = buildAjaxParameters(
+      cell2Params.categoryUID, 
+      cell2Params.groupedcategory, 
+      cell2Params.scenarioId, 
+      cell2Params.year
+    );
+    
+    console.log('AJAX parameters for comparison:', {
+      dataset1: {
+        params: ajaxParams1,
+        dataHref: cell1Params.dataHref
+      },
+      dataset2: {
+        params: ajaxParams2,
+        dataHref: cell2Params.dataHref
+      }
+    });
     
     // Fetch data for first datasheet
     console.log('Fetching first datasheet:', cell1Data.description);
-    comparisonData.dataset1 = await fetchDatasheetData(ajaxParams1, cell1Data.description, cell1Data.columnType);
+    comparisonData.dataset1 = await fetchDatasheetData(
+      ajaxParams1, 
+      cell1Data.description, 
+      cell1Data.columnType, 
+      cell1Params.dataHref
+    );
     
     // Fetch data for second datasheet
     console.log('Fetching second datasheet:', cell2Data.description);
-    comparisonData.dataset2 = await fetchDatasheetData(ajaxParams2, cell2Data.description, cell2Data.columnType);
+    comparisonData.dataset2 = await fetchDatasheetData(
+      ajaxParams2, 
+      cell2Data.description, 
+      cell2Data.columnType, 
+      cell2Params.dataHref
+    );
     
     return comparisonData;
   } catch (error) {
