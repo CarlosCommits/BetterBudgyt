@@ -48,12 +48,14 @@ document.addEventListener('DOMContentLoaded', () => {
       varianceHighlightEnabled: false,
       calculatorEnabled: true, // Default to true
       showTotalOnlyEnabled: false, // Default for the toggle
-      comparisonModeEnabled: false // Default for comparison mode
+      comparisonModeEnabled: false, // Default for comparison mode
+      debugModeEnabled: false // Default for debug mode
     }, (settings) => {
       document.getElementById('color-gradient-toggle').checked = settings.colorGradientEnabled;
       document.getElementById('calculator-toggle').checked = settings.calculatorEnabled;
       document.getElementById('show-total-only-toggle').checked = settings.showTotalOnlyEnabled;
       document.getElementById('comparison-mode-toggle').checked = settings.comparisonModeEnabled;
+      document.getElementById('debug-mode-toggle').checked = settings.debugModeEnabled;
       document.getElementById('variance1-minuend').value = settings.variance1.minuend;
       document.getElementById('variance1-subtrahend').value = settings.variance1.subtrahend;
       document.getElementById('variance2-minuend').value = settings.variance2.minuend;
@@ -152,6 +154,18 @@ document.getElementById('show-total-only-toggle').addEventListener('change', (e)
   });
 });
 
+// Debug mode toggle event listener
+document.getElementById('debug-mode-toggle').addEventListener('change', (e) => {
+  const enabled = e.target.checked;
+  chrome.storage.sync.set({ debugModeEnabled: enabled });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'TOGGLE_DEBUG_MODE',
+      enabled: enabled
+    });
+  });
+});
+
 // Color gradient toggle
 document.getElementById('color-gradient-toggle').addEventListener('change', (e) => {
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
@@ -211,6 +225,7 @@ document.getElementById('save').addEventListener('click', () => {
     calculatorEnabled: document.getElementById('calculator-toggle').checked,
     showTotalOnlyEnabled: document.getElementById('show-total-only-toggle').checked,
     comparisonModeEnabled: document.getElementById('comparison-mode-toggle').checked,
+    debugModeEnabled: document.getElementById('debug-mode-toggle').checked,
     varianceThreshold: document.getElementById('variance-threshold').value
   }, () => {
     chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {

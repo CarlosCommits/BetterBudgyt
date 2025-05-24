@@ -289,13 +289,50 @@ function initializeVarianceHeaders() {
 }
 
 
-// Global variables for calculator and comparison mode states
+// Global variables for calculator, comparison mode, and debug mode states
 let calculatorEnabled = true;
 let comparisonModeEnabled = false;
+let debugModeEnabled = false; // Debug mode for datasheet comparison
 
 // Store selected cells for comparison mode
 let comparisonSelectedCells = new Map();
 let comparisonSelectionOrder = [];
+
+// Log HTML in chunks to avoid console truncation
+function logHtmlInChunks(html, prefix = 'HTML Chunk') {
+  if (!debugModeEnabled) return;
+  
+  const chunkSize = 10000; // Characters per chunk
+  const chunks = Math.ceil(html.length / chunkSize);
+  
+  console.log(`${prefix}: Full HTML length: ${html.length} characters, splitting into ${chunks} chunks`);
+  
+  for (let i = 0; i < chunks; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize, html.length);
+    console.log(`${prefix} ${i+1}/${chunks}:`, html.substring(start, end));
+  }
+}
+
+// Log DOM structure for debugging
+function logDomStructure(element, maxDepth = 3, currentDepth = 0) {
+  if (!debugModeEnabled) return;
+  if (!element || currentDepth > maxDepth) return;
+  
+  const indent = '  '.repeat(currentDepth);
+  const tagName = element.tagName?.toLowerCase() || 'text';
+  const id = element.id ? `#${element.id}` : '';
+  const classes = element.className ? `.${element.className.split(' ').join('.')}` : '';
+  const dataLevel = element.getAttribute?.('data-level') ? `[data-level="${element.getAttribute('data-level')}"]` : '';
+  
+  console.log(`${indent}${tagName}${id}${classes}${dataLevel}`);
+  
+  if (element.children) {
+    Array.from(element.children).forEach(child => {
+      logDomStructure(child, maxDepth, currentDepth + 1);
+    });
+  }
+}
 
 // Store current settings
 let currentSettings = {
@@ -326,7 +363,8 @@ chrome.storage.sync.get({
   varianceThreshold: '',
   varianceHighlightEnabled: false,
   calculatorEnabled: true, // Default to true
-  comparisonModeEnabled: false // Default to false
+  comparisonModeEnabled: false, // Default to false
+  debugModeEnabled: false // Default for debug mode
 }, async (settings) => {
   currentSettings = { // Explicitly set currentSettings, excluding calculatorEnabled
     variance1: settings.variance1,
@@ -337,6 +375,9 @@ chrome.storage.sync.get({
   };
   calculatorEnabled = settings.calculatorEnabled; // Set global variable
   comparisonModeEnabled = settings.comparisonModeEnabled; // Set comparison mode variable
+  debugModeEnabled = settings.debugModeEnabled; // Set debug mode variable
+  
+  console.log(`Debug mode is ${debugModeEnabled ? 'enabled' : 'disabled'} on startup`);
 
   updateVarianceCalculations();
   await updateVarianceHeaders(); // Update headers when settings are loaded
@@ -393,6 +434,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         cell.classList.remove('betterbudgyt-compare-cell-1', 'betterbudgyt-compare-cell-2');
       });
     }
+  } else if (message.type === 'TOGGLE_DEBUG_MODE') {
+    debugModeEnabled = message.enabled;
+    console.log(`Debug mode ${debugModeEnabled ? 'enabled' : 'disabled'}`);
   }
   // Send response after async operations complete
   sendResponse();
@@ -863,6 +907,166 @@ function updateSumPanel() {
   panel.querySelector('#sumTotal').textContent = formatNumber(total);
 }
 
+// Find parent category row by traversing up the DOM
+function findParentCategory(row) {
+  // Get current row's level
+  const currentLevel = parseInt(row.getAttribute('data-level') || '0');
+  
+  // If this is already a top-level row, return it
+  if (currentLevel <= 3) {
+    return row;
+  }
+  
+  // Look for parent rows with level 3 (category level)
+  let currentRow = row;
+  while (currentRow) {
+    // Move to previous sibling
+    currentRow = currentRow.previousElementSibling;
+    
+    // Check if this is a level 3 row
+    if (currentRow && parseInt(currentRow.getAttribute('data-level') || '0') === 3) {
+      return currentRow;
+    }
+  }
+  
+  // If no parent found, return null
+  return null;
+}
+
+// Extract cell parameters for AJAX requests
+function extractCellParameters(cell) {
+  console.log('Extracting cell parameters from:', cell);
+  
+  // Get the row containing the cell
+  const row = cell.closest('tr');
+  if (!row) {
+    console.error('No parent row found for cell');
+    return null;
+  }
+  
+  // Get category UID from row
+  let categoryUID = row.getAttribute('data-val');
+  
+  // Find parent category by traversing up to level 3
+  const parentRow = findParentCategory(row);
+  let parentCategoryUID = parentRow ? parentRow.getAttribute('data-val') : null;
+  
+  // Get the cell's data-href attribute if it has a link
+  const link = cell.querySelector('a.linkToDataPage');
+  const dataHref = link ? link.getAttribute('data-href') : null;
+  
+  // If we have a data-href, try to extract parameters from it
+  if (dataHref) {
+    console.log('Found data-href:', dataHref);
+    
+    try {
+      // Extract parameters from the URL
+      const hrefParts = dataHref.split('?');
+      if (hrefParts.length > 1) {
+        const hrefParams = new URLSearchParams(hrefParts[1]);
+        const hrefCategoryUID = hrefParams.get('CategoryUID');
+        const hrefGroupedCategory = hrefParams.get('groupedcategory');
+        
+        if (hrefCategoryUID) {
+          categoryUID = hrefCategoryUID;
+          console.log('Extracted CategoryUID from data-href:', categoryUID);
+        }
+        
+        if (hrefGroupedCategory) {
+          console.log('Extracted groupedcategory from data-href:', hrefGroupedCategory);
+          
+          // If we have a complete groupedcategory, return it directly
+          const groupedParts = hrefGroupedCategory.split('|');
+          if (groupedParts.length === 2) {
+            parentCategoryUID = groupedParts[0];
+            categoryUID = groupedParts[1];
+            
+            console.log('Extracted complete parameters from data-href:', {
+              parentCategoryUID,
+              categoryUID,
+              groupedcategory: hrefGroupedCategory
+            });
+            
+            // Determine column type
+            const columnType = getColumnType(cell);
+            
+            // Get scenario ID based on column type
+            const scenarioId = getScenarioId(columnType);
+            
+            return {
+              categoryUID,
+              groupedcategory: hrefGroupedCategory,
+              scenarioId,
+              columnType
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing data-href:', error);
+    }
+  }
+  
+  // If categoryUID still not found, try to get from cell or its parent elements
+  if (!categoryUID) {
+    console.warn('No data-val attribute found on row, trying to find it in cell');
+    const cellWithData = cell.closest('[data-val]');
+    if (cellWithData) {
+      categoryUID = cellWithData.getAttribute('data-val');
+    }
+  }
+  
+  // If parent category not found, try to extract from URL or use default
+  if (!parentCategoryUID) {
+    // Try to extract from URL
+    const urlMatch = window.location.href.match(/\/Budget\/DataInput\/\d+\/\d+\/(\d+)/);
+    if (urlMatch && urlMatch[1]) {
+      parentCategoryUID = urlMatch[1];
+    } else {
+      // Default to SGA CONSULTANTS if not found
+      parentCategoryUID = '430';
+    }
+  }
+  
+  // If categoryUID still not found, use default
+  if (!categoryUID) {
+    categoryUID = '4022'; // Default to ARIZONA if not found
+  }
+  
+  // Determine column type
+  const columnType = getColumnType(cell);
+  
+  // Get scenario ID based on column type
+  const scenarioId = getScenarioId(columnType);
+  
+  // Create groupedcategory
+  const groupedcategory = `${parentCategoryUID}|${categoryUID}`;
+  
+  const result = {
+    categoryUID,
+    groupedcategory,
+    scenarioId,
+    columnType
+  };
+  
+  console.log('Extracted cell parameters:', result);
+  return result;
+}
+
+// Get scenario ID based on column type
+function getScenarioId(columnType) {
+  switch (columnType) {
+    case 'Actuals':
+      return '86';
+    case 'Budget':
+      return '89';
+    case 'Previous Year':
+      return '86'; // Assuming previous year uses same scenario ID as actuals
+    default:
+      return '86'; // Default to actuals
+  }
+}
+
 // Check if a cell has a datasheet link
 function hasDatasheetLink(cell) {
   return cell.querySelector('a.linkToDataPage') !== null;
@@ -1031,7 +1235,7 @@ function clearComparisonSelections() {
   updateCompareButton();
 }
 
-// Perform comparison
+// Perform comparison using AJAX
 function performComparison() {
   console.log('Performing comparison with:', comparisonSelectedCells);
   
@@ -1040,16 +1244,20 @@ function performComparison() {
     return;
   }
   
-  // Get URLs from selected cells
+  // Get data from selected cells
   const cell1 = comparisonSelectionOrder[0];
   const cell2 = comparisonSelectionOrder[1];
   const cell1Data = comparisonSelectedCells.get(cell1);
   const cell2Data = comparisonSelectedCells.get(cell2);
   
+  // Add cell references to the data objects
+  cell1Data.cell = cell1;
+  cell2Data.cell = cell2;
+  
   // Show loading indicator
   showComparisonLoadingIndicator();
   
-  // Start sequential data scraping
+  // Start AJAX-based data fetching
   openDatasheetSequentially(cell1Data, cell2Data)
     .then(comparisonData => {
       // Hide loading indicator
@@ -1057,6 +1265,8 @@ function performComparison() {
       
       // Show comparison modal with data
       showComparisonModal(comparisonData);
+      
+      console.log('Comparison completed successfully');
     })
     .catch(error => {
       // Hide loading indicator
@@ -1128,151 +1338,564 @@ function waitForDatasheetTable(doc, callback, maxAttempts = 40) { // Longer time
   checkDatasheetTable();
 }
 
-// Open datasheets sequentially and scrape data
+// Build AJAX parameters for datasheet request
+function buildAjaxParameters(categoryUID, groupedcategory) {
+  // Get timezone offset in minutes
+  const localOffset = new Date().getTimezoneOffset();
+  
+  return {
+    level: '2', // For transaction-level data
+    StoreUID: '579',
+    DeptUID: '3',
+    CategoryUID: categoryUID,
+    groupedcategory: groupedcategory,
+    CompNonCompfilter: '',
+    Stores: '567,568,569,570,571,572,573,574,575,576,577,578,579,582,580',
+    viewLevel: 'CATEGORY',
+    vendoridCSV: '-2',
+    showInGlobal: true,
+    bsMode: '',
+    categoryType: 'PL',
+    localoffset: localOffset.toString()
+  };
+}
+
+// Open response in new tab for debugging
+function openResponseInNewTab(html) {
+  const newTab = window.open();
+  newTab.document.write(html);
+  newTab.document.close();
+}
+
+// Parse JSON response if the server returns JSON instead of HTML
+function parseJsonResponse(jsonData, accountName, dataType) {
+  try {
+    console.log('Parsing JSON response:', jsonData);
+    
+    // Create result object
+    const result = {
+      accountName,
+      dataType,
+      transactions: [],
+      totals: {}
+    };
+    
+    // Different possible JSON structures
+    
+    // Structure 1: Array of rows with data
+    if (Array.isArray(jsonData)) {
+      console.log('JSON is an array, processing as row array');
+      
+      // Find transaction rows (level 3 and bottomLevel)
+      const transactionRows = jsonData.filter(row => 
+        row.level === 3 && row.isBottomLevel === true
+      );
+      
+      // Process transaction rows
+      transactionRows.forEach(row => {
+        const transaction = {
+          description: row.description || row.Description || 'Unknown',
+          vendor: row.vendor || row.Vendor || '',
+          monthly: {},
+          total: 0
+        };
+        
+        // Extract monthly values
+        const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        months.forEach((month, index) => {
+          // Try different possible period keys
+          const periodNum = index + 1;
+          const possibleKeys = [
+            `P${periodNum}`,
+            `p${periodNum}`,
+            `Period${periodNum}`,
+            month,
+            month.toLowerCase()
+          ];
+          
+          let value = 0;
+          for (const key of possibleKeys) {
+            if (row[key] !== undefined) {
+              value = parseFloat(row[key]) || 0;
+              break;
+            }
+          }
+          
+          transaction.monthly[month] = value;
+        });
+        
+        // Extract total
+        transaction.total = parseFloat(row.total || row.Total || 0) || 0;
+        
+        result.transactions.push(transaction);
+      });
+      
+      // Find total row
+      const totalRow = jsonData.find(row => 
+        (row.isTotal === true) || (row.level === 3 && row.description === 'TOTAL')
+      );
+      
+      if (totalRow) {
+        const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        months.forEach((month, index) => {
+          // Try different possible period keys
+          const periodNum = index + 1;
+          const possibleKeys = [
+            `P${periodNum}`,
+            `p${periodNum}`,
+            `Period${periodNum}`,
+            month,
+            month.toLowerCase()
+          ];
+          
+          let value = 0;
+          for (const key of possibleKeys) {
+            if (totalRow[key] !== undefined) {
+              value = parseFloat(totalRow[key]) || 0;
+              break;
+            }
+          }
+          
+          result.totals[month] = value;
+        });
+        
+        result.totals.total = parseFloat(totalRow.total || totalRow.Total || 0) || 0;
+      }
+    }
+    // Structure 2: Object with rows property
+    else if (jsonData.rows && Array.isArray(jsonData.rows)) {
+      console.log('JSON has rows property, processing rows');
+      
+      // Process each row
+      jsonData.rows.forEach(row => {
+        // Skip non-transaction rows
+        if (row.level !== 3 || !row.isBottomLevel) return;
+        
+        const transaction = {
+          description: row.description || row.Description || 'Unknown',
+          vendor: row.vendor || row.Vendor || '',
+          monthly: {},
+          total: 0
+        };
+        
+        // Extract monthly values
+        const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        months.forEach((month, index) => {
+          const periodNum = index + 1;
+          const possibleKeys = [
+            `P${periodNum}`,
+            `p${periodNum}`,
+            `Period${periodNum}`,
+            month,
+            month.toLowerCase()
+          ];
+          
+          let value = 0;
+          for (const key of possibleKeys) {
+            if (row[key] !== undefined) {
+              value = parseFloat(row[key]) || 0;
+              break;
+            }
+          }
+          
+          transaction.monthly[month] = value;
+        });
+        
+        // Extract total
+        transaction.total = parseFloat(row.total || row.Total || 0) || 0;
+        
+        result.transactions.push(transaction);
+      });
+      
+      // Extract totals if available
+      const totalRow = jsonData.rows.find(row => 
+        (row.isTotal === true) || (row.level === 3 && row.description === 'TOTAL')
+      );
+      
+      if (totalRow) {
+        const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        months.forEach((month, index) => {
+          const periodNum = index + 1;
+          const possibleKeys = [
+            `P${periodNum}`,
+            `p${periodNum}`,
+            `Period${periodNum}`,
+            month,
+            month.toLowerCase()
+          ];
+          
+          let value = 0;
+          for (const key of possibleKeys) {
+            if (totalRow[key] !== undefined) {
+              value = parseFloat(totalRow[key]) || 0;
+              break;
+            }
+          }
+          
+          result.totals[month] = value;
+        });
+        
+        result.totals.total = parseFloat(totalRow.total || totalRow.Total || 0) || 0;
+      }
+    }
+    // Structure 3: Object with data property
+    else if (jsonData.data) {
+      console.log('JSON has data property, processing data');
+      
+      // Try to process data property (could be array or object)
+      if (Array.isArray(jsonData.data)) {
+        // Process as array
+        jsonData.data.forEach(item => {
+          if (item.description || item.Description) {
+            const transaction = {
+              description: item.description || item.Description || 'Unknown',
+              vendor: item.vendor || item.Vendor || '',
+              monthly: {},
+              total: 0
+            };
+            
+            // Extract monthly values
+            const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+            months.forEach((month, index) => {
+              const periodNum = index + 1;
+              const possibleKeys = [
+                `P${periodNum}`,
+                `p${periodNum}`,
+                `Period${periodNum}`,
+                month,
+                month.toLowerCase()
+              ];
+              
+              let value = 0;
+              for (const key of possibleKeys) {
+                if (item[key] !== undefined) {
+                  value = parseFloat(item[key]) || 0;
+                  break;
+                }
+              }
+              
+              transaction.monthly[month] = value;
+            });
+            
+            // Extract total
+            transaction.total = parseFloat(item.total || item.Total || 0) || 0;
+            
+            result.transactions.push(transaction);
+          }
+        });
+      }
+    }
+    
+    // If we still have no transactions, try to extract data from any structure
+    if (result.transactions.length === 0) {
+      console.log('No transactions found with standard parsing, attempting generic extraction');
+      
+      // Try to find any arrays in the JSON
+      const findArrays = (obj, path = '') => {
+        const arrays = [];
+        
+        if (Array.isArray(obj)) {
+          arrays.push({ path, array: obj });
+        } else if (obj && typeof obj === 'object') {
+          Object.keys(obj).forEach(key => {
+            const newPath = path ? `${path}.${key}` : key;
+            if (Array.isArray(obj[key])) {
+              arrays.push({ path: newPath, array: obj[key] });
+            } else if (obj[key] && typeof obj[key] === 'object') {
+              arrays.push(...findArrays(obj[key], newPath));
+            }
+          });
+        }
+        
+        return arrays;
+      };
+      
+      const arrays = findArrays(jsonData);
+      console.log('Found arrays in JSON:', arrays);
+      
+      // Try each array to see if it contains transaction-like data
+      for (const { path, array } of arrays) {
+        if (array.length > 0 && array.some(item => 
+          (item.description || item.Description) && 
+          (item.total || item.Total || Object.keys(item).some(key => key.match(/^[pP]?\d+$/)))
+        )) {
+          console.log(`Found potential transaction data in array at path: ${path}`);
+          
+          array.forEach(item => {
+            const transaction = {
+              description: item.description || item.Description || 'Unknown',
+              vendor: item.vendor || item.Vendor || '',
+              monthly: {},
+              total: 0
+            };
+            
+            // Extract monthly values
+            const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+            months.forEach((month, index) => {
+              const periodNum = index + 1;
+              const possibleKeys = [
+                `P${periodNum}`,
+                `p${periodNum}`,
+                `Period${periodNum}`,
+                month,
+                month.toLowerCase()
+              ];
+              
+              let value = 0;
+              for (const key of possibleKeys) {
+                if (item[key] !== undefined) {
+                  value = parseFloat(item[key]) || 0;
+                  break;
+                }
+              }
+              
+              transaction.monthly[month] = value;
+            });
+            
+            // Extract total
+            transaction.total = parseFloat(item.total || item.Total || 0) || 0;
+            
+            result.transactions.push(transaction);
+          });
+          
+          // If we found transactions, break out of the loop
+          if (result.transactions.length > 0) {
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log('Parsed JSON data:', result);
+    return result;
+  } catch (error) {
+    console.error('Error parsing JSON response:', error);
+    throw new Error(`Failed to parse JSON response: ${error.message}`);
+  }
+}
+
+// Fetch datasheet data via AJAX
+async function fetchDatasheetData(parameters, accountName, dataType) {
+  try {
+    console.log('Fetching datasheet data with parameters:', parameters);
+    
+    // Make POST request to GetRowData endpoint with JSON format
+    const response = await fetch('/Budget/GetRowData', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Accept': 'text/html, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest'
+        // Cookies are automatically included by the browser
+      },
+      body: JSON.stringify(parameters)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    // Get response text
+    const responseText = await response.text();
+    
+    // Log raw response for debugging
+    console.log('Raw response (first 500 chars):', responseText.substring(0, 500) + '...');
+    
+    // Log full HTML in chunks if debug mode is enabled
+    logHtmlInChunks(responseText, 'HTML Response');
+    
+    // Skip JSON parsing attempt and go straight to HTML parsing
+    console.log('Parsing HTML response for datasheet data');
+    
+    // Wrap the HTML response in a proper table structure before parsing
+    const wrappedHtml = `<table><tbody>${responseText}</tbody></table>`;
+    
+    // Parse HTML response
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(wrappedHtml, 'text/html');
+    
+    // Log DOM structure if debug mode is enabled
+    if (debugModeEnabled) {
+      console.log('Parsed DOM structure:');
+      logDomStructure(doc.body, 5);
+    }
+    
+    // Extract data from parsed HTML
+    const result = {
+      accountName,
+      dataType,
+      transactions: [],
+      totals: {}
+    };
+    
+    // Find all tr elements with data-level attribute (now inside table > tbody)
+    const allRows = doc.querySelectorAll('table > tbody > tr[data-level]');
+    console.log(`Found ${allRows.length} total rows with data-level attribute`);
+    
+    if (debugModeEnabled) {
+      // Log all data-level values for debugging
+      const dataLevels = Array.from(allRows).map(row => row.getAttribute('data-level'));
+      console.log('Data levels found:', [...new Set(dataLevels)]);
+      
+      // Log all class combinations for debugging
+      const classLists = Array.from(allRows).map(row => row.className);
+      console.log('Class combinations found:', [...new Set(classLists)]);
+    }
+    
+    // Find transaction rows - try multiple selectors based on the actual HTML structure
+    const transactionRowSelectors = [
+      'table > tbody > tr[data-level="3"].budgetdata.bottomLevel.showyear.highlight.level3',
+      'table > tbody > tr[data-level="3"].budgetdata.bottomLevel.showyear',
+      'table > tbody > tr[data-level="3"].budgetdata.bottomLevel',
+      'table > tbody > tr.budgetdata.bottomLevel'
+    ];
+    
+    let transactionRows = [];
+    for (const selector of transactionRowSelectors) {
+      const rows = doc.querySelectorAll(selector);
+      if (rows.length > 0) {
+        console.log(`Found ${rows.length} transaction rows using selector: ${selector}`);
+        transactionRows = rows;
+        break;
+      }
+    }
+    
+    // If no transaction rows found with standard selectors, try a more generic approach
+    if (transactionRows.length === 0) {
+      console.log('No transaction rows found with standard selectors, trying generic approach');
+      
+      // Look for any row with data-level="3" that isn't a total row
+      transactionRows = Array.from(doc.querySelectorAll('tr[data-level="3"]'))
+        .filter(row => !row.classList.contains('totals') && !row.classList.contains('LevelPercentLY'));
+      
+      console.log(`Found ${transactionRows.length} transaction rows using generic approach`);
+      
+      // If still no rows, try looking for any row with a vendor cell
+      if (transactionRows.length === 0) {
+        transactionRows = Array.from(doc.querySelectorAll('table > tbody > tr'))
+          .filter(row => row.querySelector('.vendor') || row.querySelector('.vendorLst'));
+        
+        console.log(`Found ${transactionRows.length} transaction rows by looking for vendor cells`);
+      }
+    }
+    
+    // Process transaction rows
+    transactionRows.forEach(row => {
+      if (debugModeEnabled) {
+        console.log('Processing transaction row:', row.outerHTML);
+      } else {
+        console.log('Processing transaction row:', row.outerHTML.substring(0, 200) + '...');
+      }
+      
+      const transaction = extractTransactionData(row);
+      if (transaction) {
+        result.transactions.push(transaction);
+      }
+    });
+    
+    // Find total row - try multiple selectors based on the actual HTML structure
+    const totalRowSelectors = [
+      'table > tbody > tr[data-level="3"].doNotExpand.showyear.totals.highlight.level3',
+      'table > tbody > tr[data-level="3"].doNotExpand.showyear.totals',
+      'table > tbody > tr[data-level="3"].totals',
+      'table > tbody > tr.totals',
+      'table > tbody > tr.doNotExpand.showyear.totals'
+    ];
+    
+    let totalRow = null;
+    for (const selector of totalRowSelectors) {
+      const row = doc.querySelector(selector);
+      if (row) {
+        console.log(`Found total row using selector: ${selector}`);
+        totalRow = row;
+        break;
+      }
+    }
+    
+    // If no total row found, try to find by text content
+    if (!totalRow) {
+      const allRows = doc.querySelectorAll('table > tbody > tr');
+      for (const row of allRows) {
+        if (row.textContent.includes('Totals')) {
+          console.log('Found total row by text content "Totals"');
+          totalRow = row;
+          break;
+        }
+      }
+    }
+    
+    if (totalRow) {
+      if (debugModeEnabled) {
+        console.log('Total row HTML:', totalRow.outerHTML);
+      }
+      result.totals = extractTotalData(totalRow);
+    } else {
+      console.warn('No total row found, totals will be empty');
+    }
+    
+    console.log('Successfully fetched datasheet data:', {
+      accountName,
+      dataType,
+      transactionCount: result.transactions.length,
+      hasTotal: Object.keys(result.totals).length > 0
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching datasheet data:', error);
+    throw new Error(`Failed to fetch datasheet data: ${error.message}`);
+  }
+}
+
+// Open datasheets sequentially using AJAX
 async function openDatasheetSequentially(cell1Data, cell2Data) {
   // Create result object
   const comparisonData = {
     dataset1: {
       accountName: cell1Data.description,
       dataType: cell1Data.columnType,
-      url: cell1Data.url,
       transactions: [],
       totals: {}
     },
     dataset2: {
       accountName: cell2Data.description,
       dataType: cell2Data.columnType,
-      url: cell2Data.url,
       transactions: [],
       totals: {}
     }
   };
   
-  // Create iframe for scraping (hidden) with full HD dimensions
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.top = '-9999px';
-  iframe.style.left = '-9999px';
-  iframe.style.width = '1920px';  // Full HD width
-  iframe.style.height = '1080px'; // Full HD height
-  document.body.appendChild(iframe);
-  
   try {
-    // Load first datasheet
-    console.log('Loading first datasheet:', cell1Data.url);
-    comparisonData.dataset1 = await loadDatasheetInIframe(iframe, cell1Data.url, cell1Data.description, cell1Data.columnType);
+    // Extract parameters for both cells
+    const cell1Params = extractCellParameters(cell1Data.cell);
+    const cell2Params = extractCellParameters(cell2Data.cell);
     
-    // Load second datasheet
-    console.log('Loading second datasheet:', cell2Data.url);
-    comparisonData.dataset2 = await loadDatasheetInIframe(iframe, cell2Data.url, cell2Data.description, cell2Data.columnType);
-    
-    return comparisonData;
-  } finally {
-    // Clean up iframe
-    iframe.remove();
-  }
-}
-
-// Load datasheet in iframe and scrape data with retry mechanism
-function loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount = 0, maxRetries = 3) {
-  return new Promise((resolve, reject) => {
-    // Set timeout for loading (increases with each retry)
-    const timeoutDuration = 60000 + (retryCount * 30000); // Start with 60s, add 30s per retry
-    const timeout = setTimeout(() => {
-      if (retryCount < maxRetries) {
-        console.warn(`Timeout loading datasheet, retrying (${retryCount + 1}/${maxRetries})...`);
-        resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
-      } else {
-        reject(new Error(`Timeout loading datasheet after ${maxRetries} attempts`));
-      }
-    }, timeoutDuration);
-    
-    // Full URL with cache-busting parameter for retries
-    let fullUrl = window.location.origin + url;
-    if (retryCount > 0) {
-      fullUrl += (fullUrl.includes('?') ? '&' : '?') + 'forceRefresh=' + Date.now() + '&retry=' + retryCount;
+    if (!cell1Params || !cell2Params) {
+      throw new Error('Failed to extract cell parameters for comparison');
     }
     
-    console.log(`Loading datasheet (attempt ${retryCount + 1}/${maxRetries + 1}):`, fullUrl);
+    console.log('Extracted cell parameters:', {
+      cell1: cell1Params,
+      cell2: cell2Params
+    });
     
-    // Load URL in iframe
-    iframe.src = fullUrl;
+    // Build AJAX parameters
+    const ajaxParams1 = buildAjaxParameters(cell1Params.categoryUID, cell1Params.groupedcategory);
+    const ajaxParams2 = buildAjaxParameters(cell2Params.categoryUID, cell2Params.groupedcategory);
     
-    // Wait for iframe to load
-    iframe.onload = () => {
-      try {
-        clearTimeout(timeout);
-        
-        // Wait for table to be fully loaded with all required elements
-        try {
-          waitForDatasheetTable(iframe.contentDocument, () => {
-            try {
-              // Scrape data from iframe
-              const data = scrapeDatasheetData(iframe.contentDocument, accountName, dataType);
-              
-              // Validate scraped data
-              if (!data || !data.transactions || data.transactions.length === 0) {
-                console.warn(`Scraped data is empty or invalid (attempt ${retryCount + 1}/${maxRetries + 1})`);
-                
-                if (retryCount < maxRetries) {
-                  console.log(`Retrying with forced refresh (${retryCount + 1}/${maxRetries})...`);
-                  resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
-                } else {
-                  reject(new Error(`Failed to get valid data after ${maxRetries + 1} attempts`));
-                }
-                return;
-              }
-              
-              // Success - log and resolve
-              console.log(`Successfully loaded datasheet on attempt ${retryCount + 1}/${maxRetries + 1}`);
-              resolve(data);
-            } catch (error) {
-              console.error(`Error scraping datasheet (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
-              
-              if (retryCount < maxRetries) {
-                console.log(`Retrying after scraping error (${retryCount + 1}/${maxRetries})...`);
-                resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
-              } else {
-                reject(new Error(`Error scraping datasheet after ${maxRetries + 1} attempts: ${error.message}`));
-              }
-            }
-          });
-        } catch (error) {
-          console.error(`Error waiting for datasheet table (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
-          
-          if (retryCount < maxRetries) {
-            console.log(`Retrying after table wait error (${retryCount + 1}/${maxRetries})...`);
-            resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
-          } else {
-            reject(new Error(`Error waiting for datasheet table after ${maxRetries + 1} attempts: ${error.message}`));
-          }
-        }
-      } catch (error) {
-        clearTimeout(timeout);
-        console.error(`Error in iframe onload (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
-        
-        if (retryCount < maxRetries) {
-          console.log(`Retrying after onload error (${retryCount + 1}/${maxRetries})...`);
-          resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
-        } else {
-          reject(new Error(`Error loading datasheet after ${maxRetries + 1} attempts: ${error.message}`));
-        }
-      }
-    };
+    // Fetch data for first datasheet
+    console.log('Fetching first datasheet:', cell1Data.description);
+    comparisonData.dataset1 = await fetchDatasheetData(ajaxParams1, cell1Data.description, cell1Data.columnType);
     
-    // Handle iframe load errors
-    iframe.onerror = (error) => {
-      clearTimeout(timeout);
-      console.error(`Iframe load error (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
-      
-      if (retryCount < maxRetries) {
-        console.log(`Retrying after iframe error (${retryCount + 1}/${maxRetries})...`);
-        resolve(loadDatasheetInIframe(iframe, url, accountName, dataType, retryCount + 1, maxRetries));
-      } else {
-        reject(new Error(`Failed to load datasheet after ${maxRetries + 1} attempts`));
-      }
-    };
-  });
+    // Fetch data for second datasheet
+    console.log('Fetching second datasheet:', cell2Data.description);
+    comparisonData.dataset2 = await fetchDatasheetData(ajaxParams2, cell2Data.description, cell2Data.columnType);
+    
+    return comparisonData;
+  } catch (error) {
+    console.error('Error in datasheet comparison:', error);
+    throw new Error(`Failed to compare datasheets: ${error.message}`);
+  }
 }
 
 // Scrape datasheet data from document
@@ -1323,17 +1946,55 @@ function scrapeDatasheetData(doc, accountName, dataType) {
 // Extract transaction data from row
 function extractTransactionData(row) {
   try {
-    // Get description
-    const descCell = row.querySelector('td .label');
-    const description = descCell ? 
-      (descCell.querySelector('.desc-field') ? 
-        descCell.querySelector('.desc-field').textContent.trim() : 
-        descCell.textContent.trim()) : 
-      'Unknown';
+    if (debugModeEnabled) {
+      console.log('Extracting transaction data from row:', row.outerHTML);
+    } else {
+      console.log('Extracting transaction data from row:', row.outerHTML.substring(0, 200) + '...');
+    }
     
-    // Get vendor
-    const vendorCell = row.querySelector('.vendor');
-    const vendor = vendorCell ? vendorCell.textContent.trim() : '';
+    // Get description - try multiple approaches
+    let description = 'Unknown';
+    
+    // Approach 1: Try to find the description in a span.desc-field
+    const descSpan = row.querySelector('span.desc-field');
+    if (descSpan) {
+      description = descSpan.textContent.trim();
+      console.log('Found description in span.desc-field:', description);
+    } 
+    // Approach 2: Try to find the description in a td with isDescription attribute
+    else {
+      const descCell = row.querySelector('td[isDescription="true"]');
+      if (descCell) {
+        description = descCell.textContent.trim();
+        console.log('Found description in td[isDescription="true"]:', description);
+      }
+      // Approach 3: Try to find the description in the first cell
+      else {
+        const firstCell = row.querySelector('td:first-child');
+        if (firstCell) {
+          description = firstCell.textContent.trim();
+          console.log('Found description in first cell:', description);
+        }
+      }
+    }
+    
+    // Get vendor - try multiple approaches
+    let vendor = '';
+    
+    // Approach 1: Look for span.vendor
+    const vendorSpan = row.querySelector('span.vendor');
+    if (vendorSpan) {
+      vendor = vendorSpan.textContent.trim();
+      console.log('Found vendor in span.vendor:', vendor);
+    } 
+    // Approach 2: Look for td.vendor
+    else {
+      const vendorCell = row.querySelector('td.vendor, td.vendorLst');
+      if (vendorCell) {
+        vendor = vendorCell.textContent.trim();
+        console.log('Found vendor in td.vendor:', vendor);
+      }
+    }
     
     // Get monthly values
     const monthly = {};
@@ -1341,58 +2002,176 @@ function extractTransactionData(row) {
     
     months.forEach((month, index) => {
       const periodNum = index + 1;
-      // Try both formats: with and without leading zero
-      const periodStrWithZero = periodNum < 10 ? `P0${periodNum}` : `P${periodNum}`;
-      const periodStrNoZero = `P${periodNum}`;
+      // Format period number with leading zero if needed
+      const periodStr = periodNum < 10 ? `P0${periodNum}` : `P${periodNum}`;
       
-      // First try with the format used in transaction rows (P1, P2, etc.)
-      let dataCell = row.querySelector(`td.data[data-period="${periodStrNoZero}"]`);
+      // Try multiple selectors for month cells
+      const selectors = [
+        `td[data-period="${periodStr}"]`,
+        `td[title="${month}"]`,
+        `td[data-month="${month}"]`,
+        `td.data[data-period="${periodStr}"]`,
+        `td.data[title="${month}"]`
+      ];
       
-      // If not found, try with the format used in headers (P01, P02, etc.)
-      if (!dataCell) {
-        dataCell = row.querySelector(`td.data[data-period="${periodStrWithZero}"]`);
+      let dataCell = null;
+      for (const selector of selectors) {
+        dataCell = row.querySelector(selector);
+        if (dataCell) {
+          if (debugModeEnabled) {
+            console.log(`Found ${month} cell using selector: ${selector}`);
+          }
+          break;
+        }
       }
       
-      // Also try with title attribute as fallback
+      // If still not found, try by position (last resort)
       if (!dataCell) {
-        dataCell = row.querySelector(`td.data[title="${month}"]`);
+        // Month cells typically start at position 3 or 4
+        const startPos = 3; // Adjust based on actual table structure
+        const cellIndex = startPos + index;
+        dataCell = row.querySelector(`td:nth-child(${cellIndex})`);
+        
+        if (dataCell && debugModeEnabled) {
+          console.log(`Found ${month} cell by position: td:nth-child(${cellIndex})`);
+        }
       }
       
       if (dataCell) {
+        // Try multiple ways to extract the value
+        
+        // Approach 1: Try to get from span[data-value] attribute
         const valueSpan = dataCell.querySelector('span[data-value]');
-        if (valueSpan) {
+        if (valueSpan && valueSpan.hasAttribute('data-value')) {
           const value = valueSpan.getAttribute('data-value');
           monthly[month] = parseFloat(value.replace(/,/g, '')) || 0;
-        } else {
-          const valueText = dataCell.textContent.trim();
-          monthly[month] = parseFloat(valueText.replace(/,/g, '')) || 0;
+          if (debugModeEnabled) {
+            console.log(`Found ${month} value from data-value:`, monthly[month]);
+          }
+        } 
+        // Approach 2: Try to get from input value
+        else if (dataCell.querySelector('input[type="text"]')) {
+          const input = dataCell.querySelector('input[type="text"]');
+          const value = input.value;
+          monthly[month] = parseFloat(value.replace(/,/g, '')) || 0;
+          if (debugModeEnabled) {
+            console.log(`Found ${month} value from input:`, monthly[month]);
+          }
+        }
+        // Approach 3: Try to get from text content
+        else {
+          // Check if there's a span with the value
+          const span = dataCell.querySelector('span');
+          if (span) {
+            const value = span.textContent.trim();
+            monthly[month] = parseFloat(value.replace(/,/g, '')) || 0;
+            if (debugModeEnabled) {
+              console.log(`Found ${month} value from span:`, monthly[month]);
+            }
+          } else {
+            // Get from cell text content
+            const valueText = dataCell.textContent.trim();
+            monthly[month] = parseFloat(valueText.replace(/,/g, '')) || 0;
+            if (debugModeEnabled) {
+              console.log(`Found ${month} value from text:`, monthly[month]);
+            }
+          }
         }
       } else {
         monthly[month] = 0;
+        if (debugModeEnabled) {
+          console.log(`No cell found for ${month}, using default value 0`);
+        }
       }
     });
     
-    // Get total
-    const totalCell = row.querySelector('td.data.DATValueTotalF');
+    // Get total - try multiple approaches
     let total = 0;
-    if (totalCell) {
-      const totalSpan = totalCell.querySelector('span[data-value]');
-      if (totalSpan) {
-        total = parseFloat(totalSpan.getAttribute('data-value').replace(/,/g, '')) || 0;
-      } else {
-        total = parseFloat(totalCell.textContent.replace(/,/g, '')) || 0;
+    
+    // Approach 1: Try to find the cell with title="Total"
+    const totalSelectors = [
+      'td[title="Total"]',
+      'td.data[title="Total"]',
+      'td.DATValueTotalF',
+      'td.data.DATValueTotalF'
+    ];
+    
+    let totalCell = null;
+    for (const selector of totalSelectors) {
+      totalCell = row.querySelector(selector);
+      if (totalCell) {
+        if (debugModeEnabled) {
+          console.log(`Found total cell using selector: ${selector}`);
+        }
+        break;
       }
-    } else {
-      // Calculate total from monthly values if not found
-      total = Object.values(monthly).reduce((sum, val) => sum + val, 0);
     }
     
-    return {
+    // Approach 2: If not found by selector, try by position (last cell)
+    if (!totalCell) {
+      const cells = row.querySelectorAll('td');
+      if (cells.length > 0) {
+        totalCell = cells[cells.length - 1];
+        if (debugModeEnabled) {
+          console.log('Found total cell by position (last cell)');
+        }
+      }
+    }
+    
+    if (totalCell) {
+      // Try multiple ways to extract the value
+      
+      // Approach 1: Try to get from span[data-value] attribute
+      const valueSpan = totalCell.querySelector('span[data-value]');
+      if (valueSpan && valueSpan.hasAttribute('data-value')) {
+        total = parseFloat(valueSpan.getAttribute('data-value').replace(/,/g, '')) || 0;
+        if (debugModeEnabled) {
+          console.log('Found total from data-value:', total);
+        }
+      } 
+      // Approach 2: Try to get from input value
+      else if (totalCell.querySelector('input[type="text"]')) {
+        const input = totalCell.querySelector('input[type="text"]');
+        total = parseFloat(input.value.replace(/,/g, '')) || 0;
+        if (debugModeEnabled) {
+          console.log('Found total from input:', total);
+        }
+      }
+      // Approach 3: Try to get from text content
+      else {
+        // Check if there's a span with the value
+        const span = totalCell.querySelector('span');
+        if (span) {
+          total = parseFloat(span.textContent.replace(/,/g, '')) || 0;
+          if (debugModeEnabled) {
+            console.log('Found total from span:', total);
+          }
+        } else {
+          // Get from cell text content
+          const valueText = totalCell.textContent.trim();
+          total = parseFloat(valueText.replace(/,/g, '')) || 0;
+          if (debugModeEnabled) {
+            console.log('Found total from text:', total);
+          }
+        }
+      }
+    } else {
+      // If no total cell found, calculate from monthly values
+      total = Object.values(monthly).reduce((sum, val) => sum + val, 0);
+      if (debugModeEnabled) {
+        console.log('Calculated total from monthly values:', total);
+      }
+    }
+    
+    const result = {
       description,
       vendor,
       monthly,
       total
     };
+    
+    console.log('Extracted transaction:', result);
+    return result;
   } catch (error) {
     console.error('Error extracting transaction data:', error);
     return null;
@@ -1402,35 +2181,36 @@ function extractTransactionData(row) {
 // Extract total data from row
 function extractTotalData(row) {
   try {
+    console.log('Extracting total data from row:', row);
+    
     const totals = {};
     const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
     
     months.forEach((month, index) => {
       const periodNum = index + 1;
-      // Try both formats: with and without leading zero
-      const periodStrWithZero = periodNum < 10 ? `P0${periodNum}` : `P${periodNum}`;
-      const periodStrNoZero = `P${periodNum}`;
+      // Try multiple formats for period cells
+      const selectors = [
+        `td.data[data-period="P${periodNum}"]`,
+        `td.data[data-period="P0${periodNum}"]`,
+        `td.data[title="${month}"]`,
+        `td[data-month="${month}"]`,
+        `td:nth-child(${index + 4})` // Fallback based on position
+      ];
       
-      // First try with the format used in transaction rows (P1, P2, etc.)
-      let dataCell = row.querySelector(`td.data[data-period="${periodStrNoZero}"]`);
-      
-      // If not found, try with the format used in headers (P01, P02, etc.)
-      if (!dataCell) {
-        dataCell = row.querySelector(`td.data[data-period="${periodStrWithZero}"]`);
-      }
-      
-      // Also try with title attribute as fallback
-      if (!dataCell) {
-        dataCell = row.querySelector(`td.data[title="${month}"]`);
+      let dataCell = null;
+      for (const selector of selectors) {
+        dataCell = row.querySelector(selector);
+        if (dataCell) break;
       }
       
       if (dataCell) {
-        const valueSpan = dataCell.querySelector('span');
+        // Try multiple ways to extract the value
+        const valueSpan = dataCell.querySelector('span[data-value]');
         if (valueSpan && valueSpan.hasAttribute('data-value')) {
           const value = valueSpan.getAttribute('data-value');
           totals[month] = parseFloat(value.replace(/,/g, '')) || 0;
-        } else if (valueSpan) {
-          const value = valueSpan.textContent.trim();
+        } else if (dataCell.querySelector('span')) {
+          const value = dataCell.querySelector('span').textContent.trim();
           totals[month] = parseFloat(value.replace(/,/g, '')) || 0;
         } else {
           const valueText = dataCell.textContent.trim();
@@ -1441,12 +2221,25 @@ function extractTotalData(row) {
       }
     });
     
-    // Get total
-    const totalCell = row.querySelector('td.data.DATValueTotalF');
+    // Get total - try multiple selectors
+    const totalSelectors = [
+      'td.data.DATValueTotalF',
+      'td.data[title="Total"]',
+      'td:last-child'
+    ];
+    
+    let totalCell = null;
+    for (const selector of totalSelectors) {
+      totalCell = row.querySelector(selector);
+      if (totalCell) break;
+    }
+    
     if (totalCell) {
-      const totalSpan = totalCell.querySelector('span');
-      if (totalSpan) {
-        totals.total = parseFloat(totalSpan.textContent.replace(/,/g, '')) || 0;
+      const totalSpan = totalCell.querySelector('span[data-value]');
+      if (totalSpan && totalSpan.hasAttribute('data-value')) {
+        totals.total = parseFloat(totalSpan.getAttribute('data-value').replace(/,/g, '')) || 0;
+      } else if (totalCell.querySelector('span')) {
+        totals.total = parseFloat(totalCell.querySelector('span').textContent.replace(/,/g, '')) || 0;
       } else {
         totals.total = parseFloat(totalCell.textContent.replace(/,/g, '')) || 0;
       }
@@ -1455,6 +2248,7 @@ function extractTotalData(row) {
       totals.total = Object.values(totals).reduce((sum, val) => sum + val, 0);
     }
     
+    console.log('Extracted totals:', totals);
     return totals;
   } catch (error) {
     console.error('Error extracting total data:', error);
