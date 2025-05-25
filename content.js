@@ -1376,13 +1376,9 @@ function waitForDatasheetTable(doc, callback, maxAttempts = 40) { // Longer time
 }
 
 // Build AJAX parameters for datasheet request
-function buildAjaxParameters(categoryUID, groupedcategory, scenarioId, year) {
+function buildAjaxParameters(categoryUID, groupedcategory) {
   // Get timezone offset in minutes
   const localOffset = new Date().getTimezoneOffset();
-  
-  // Default values if not provided
-  const defaultScenarioId = '86'; // Default to Actuals
-  const defaultYear = '2026'; // Default year
   
   return {
     level: '2', // For transaction-level data
@@ -1397,9 +1393,7 @@ function buildAjaxParameters(categoryUID, groupedcategory, scenarioId, year) {
     showInGlobal: true,
     bsMode: '',
     categoryType: 'PL',
-    localoffset: localOffset.toString(),
-    scenarioId: scenarioId || defaultScenarioId,
-    year: year || defaultYear
+    localoffset: localOffset.toString()
   };
 }
 
@@ -1720,7 +1714,8 @@ function parseJsonResponse(jsonData, accountName, dataType) {
 // Fetch datasheet data via AJAX
 async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
   try {
-    console.log('Fetching datasheet data with parameters:', parameters);
+    console.log(`Fetching datasheet data for ${accountName} (${dataType}):`);
+    console.log('Parameters:', JSON.stringify(parameters, null, 2));
     console.log('Using data-href for Referer:', dataHref);
     
     // Construct the full Referer URL
@@ -1731,7 +1726,8 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
     const headers = {
       'Content-Type': 'application/json; charset=UTF-8',
       'Accept': 'text/html, */*; q=0.01',
-      'X-Requested-With': 'XMLHttpRequest'
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-BetterBudgyt-Request-ID': `${accountName}-${dataType}-${Date.now()}`
       // Cookies are automatically included by the browser
     };
     
@@ -1740,12 +1736,17 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
       headers['Referer'] = refererUrl;
     }
     
+    console.log('Request headers:', JSON.stringify(headers, null, 2));
+    
     // Make POST request to GetRowData endpoint with JSON format
     const response = await fetch('/Budget/GetRowData', {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(parameters)
     });
+    
+    console.log(`Response status for ${accountName} (${dataType}):`, response.status);
+    console.log('Response headers:', JSON.stringify(Object.fromEntries([...response.headers.entries()]), null, 2));
     
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -1935,29 +1936,27 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
       cell2: cell2Params
     });
     
-    // Build AJAX parameters with scenario ID and year
+    // Build AJAX parameters
     const ajaxParams1 = buildAjaxParameters(
       cell1Params.categoryUID, 
-      cell1Params.groupedcategory, 
-      cell1Params.scenarioId, 
-      cell1Params.year
+      cell1Params.groupedcategory
     );
     
     const ajaxParams2 = buildAjaxParameters(
       cell2Params.categoryUID, 
-      cell2Params.groupedcategory, 
-      cell2Params.scenarioId, 
-      cell2Params.year
+      cell2Params.groupedcategory
     );
     
     console.log('AJAX parameters for comparison:', {
       dataset1: {
         params: ajaxParams1,
-        dataHref: cell1Params.dataHref
+        dataHref: cell1Params.dataHref,
+        scenarioId: cell1Params.scenarioId
       },
       dataset2: {
         params: ajaxParams2,
-        dataHref: cell2Params.dataHref
+        dataHref: cell2Params.dataHref,
+        scenarioId: cell2Params.scenarioId
       }
     });
     
