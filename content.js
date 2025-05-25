@@ -1711,12 +1711,111 @@ function parseJsonResponse(jsonData, accountName, dataType) {
   }
 }
 
+// Prime the budget session with a GET request to set the correct BudgetId in session
+async function primeBudgetSession(dataHref) {
+  if (!dataHref) return;  // safety check
+  
+  console.log(`Priming budget session with GET request to: ${dataHref}`);
+  
+  try {
+    const response = await fetch(dataHref, {
+      method: 'GET',
+      credentials: 'include'  // send ASP.NET_SessionId
+    });
+    
+    console.log(`Prime session response status: ${response.status}`);
+    
+    // give IIS/Redis a beat to commit the session
+    await new Promise(r => setTimeout(r, 250));
+    
+    return true;
+  } catch (error) {
+    console.error('Error priming budget session:', error);
+    throw new Error(`Failed to prime budget session: ${error.message}`);
+  }
+}
+
+// Initialize budget session context before fetching data
+async function fetchPercentApprovedValues(groupedcategory, dataHref) {
+  try {
+    console.log(`Initializing budget session with FetchPercentApprovedValues for ${groupedcategory}`);
+    
+    // Construct the full Referer URL
+    const baseUrl = window.location.origin; // e.g., https://theesa.budgyt.com
+    const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
+    
+    // Headers for the request
+    const headers = {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    
+    // Add Referer header if we have a data-href
+    if (refererUrl) {
+      headers['Referer'] = refererUrl;
+    }
+    
+    console.log('Using data-href for Referer:', dataHref);
+    
+    // Payload for FetchPercentApprovedValues
+    const payload = {
+      StoreUIDCSV: '567,568,569,570,571,572,573,574,575,576,577,578,579,582,580',
+      groupedcategory: groupedcategory
+    };
+    
+    console.log('FetchPercentApprovedValues request:', {
+      url: '/Budget/FetchPercentApprovedValues',
+      headers: headers,
+      payload: payload
+    });
+    
+    // Make POST request to FetchPercentApprovedValues endpoint
+    const response = await fetch('/Budget/FetchPercentApprovedValues', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error initializing budget session! Status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('FetchPercentApprovedValues response:', result);
+    
+    return true;
+  } catch (error) {
+    console.error('Error initializing budget session:', error);
+    throw new Error(`Failed to initialize budget session: ${error.message}`);
+  }
+}
+
 // Fetch datasheet data via AJAX
 async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
   try {
     console.log(`Fetching datasheet data for ${accountName} (${dataType}):`);
     console.log('Parameters:', JSON.stringify(parameters, null, 2));
     console.log('Using data-href for Referer:', dataHref);
+    
+    // Extract BudgetId and BudgetYear from dataHref
+    let budgetId = '86'; // Default to Actuals
+    let budgetYear = '2026'; // Default year
+    
+    if (dataHref) {
+      const pathMatch = dataHref.match(/\/Budget\/DataInput\/(\d+)\/(\d+)/);
+      if (pathMatch && pathMatch.length >= 3) {
+        budgetId = pathMatch[1];
+        budgetYear = pathMatch[2];
+        console.log(`Extracted from data-href: BudgetId=${budgetId}, BudgetYear=${budgetYear}`);
+      }
+    }
+    
+    // 1. Prime the session with a GET request to set the correct BudgetId in session
+    await primeBudgetSession(dataHref);
+    
+    // 2. Initialize budget session context using FetchPercentApprovedValues
+    await fetchPercentApprovedValues(parameters.groupedcategory, dataHref);
     
     // Construct the full Referer URL
     const baseUrl = window.location.origin; // e.g., https://theesa.budgyt.com
@@ -1736,7 +1835,7 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
       headers['Referer'] = refererUrl;
     }
     
-    console.log('Request headers:', JSON.stringify(headers, null, 2));
+    console.log('GetRowData request headers:', JSON.stringify(headers, null, 2));
     
     // Make POST request to GetRowData endpoint with JSON format
     const response = await fetch('/Budget/GetRowData', {
