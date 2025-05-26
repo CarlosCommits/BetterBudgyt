@@ -391,6 +391,57 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   background-color: rgba(126, 211, 33, 0.15);
 }
 
+/* Department row styles */
+.betterbudgyt-comparison-row-department {
+  background-color: #f0f0f0;
+  font-weight: bold;
+  border-top: 2px solid #999;
+}
+
+.betterbudgyt-comparison-row-department.betterbudgyt-comparison-row-dataset-1 {
+  background-color: rgba(74, 144, 226, 0.2);
+}
+
+.betterbudgyt-comparison-row-department.betterbudgyt-comparison-row-dataset-2 {
+  background-color: rgba(126, 211, 33, 0.2);
+}
+
+.betterbudgyt-comparison-department-name {
+  font-size: 15px;
+  padding: 10px 12px !important;
+}
+
+/* Subtotal row styles */
+.betterbudgyt-comparison-row-subtotal {
+  font-weight: bold;
+  border-top: 1px solid #999;
+  border-bottom: 1px solid #999;
+}
+
+.betterbudgyt-comparison-row-subtotal.betterbudgyt-comparison-row-dataset-1 {
+  background-color: rgba(74, 144, 226, 0.1);
+}
+
+.betterbudgyt-comparison-row-subtotal.betterbudgyt-comparison-row-dataset-2 {
+  background-color: rgba(126, 211, 33, 0.1);
+}
+
+/* Separator row styles */
+.betterbudgyt-comparison-row-separator {
+  height: 20px;
+  background-color: #f8f9fa;
+}
+
+.betterbudgyt-comparison-row-separator td {
+  border-top: 2px solid #ddd;
+  border-bottom: 2px solid #ddd;
+}
+
+/* Transaction row styles */
+.betterbudgyt-comparison-row-transaction {
+  font-size: 13px;
+}
+
 /* Sum Panel Styles */
 .betterbudgyt-sum-panel {
     position: fixed;
