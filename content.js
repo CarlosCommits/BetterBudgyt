@@ -1382,7 +1382,7 @@ function buildAjaxParameters(categoryUID, groupedcategory) {
   
   return {
     level: '2', // For transaction-level data
-    StoreUID: '579',
+    StoreUID: '-1', // This will be replaced with the correct StoreUID from fetchStoreUIDForDepartment
     DeptUID: '3',
     CategoryUID: categoryUID,
     groupedcategory: groupedcategory,
@@ -1791,11 +1791,192 @@ async function fetchPercentApprovedValues(groupedcategory, dataHref) {
   }
 }
 
+// Fetch Level 0 data to extract the correct StoreUID for a department
+async function fetchStoreUIDForDepartment(parameters, accountName, dataHref) {
+  try {
+    console.log(`Fetching StoreUID for ${accountName} with groupedcategory: ${parameters.groupedcategory}`);
+    
+    // Create Level 0 parameters to get department/StoreUID mapping
+    const level0Params = {
+      level: '0',
+      StoreUID: '-1',
+      DeptUID: '-1',
+      CategoryUID: '-1',
+      groupedcategory: parameters.groupedcategory,
+      CompNonCompfilter: '',
+      Stores: parameters.Stores || '567,568,569,570,571,572,573,574,575,576,577,578,579,582,580',
+      viewLevel: 'STORE',
+      vendorIdCSV: '-2',
+      showInGlobal: true,
+      bsMode: '',
+      categoryType: 'PL',
+      localoffset: new Date().getTimezoneOffset().toString()
+    };
+    
+    console.log('Level 0 request parameters:', JSON.stringify(level0Params, null, 2));
+    
+    // Construct the full Referer URL
+    const baseUrl = window.location.origin;
+    const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
+    
+    // Headers for the request
+    const headers = {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Accept': 'text/html, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    
+    // Add Referer header if we have a data-href
+    if (refererUrl) {
+      headers['Referer'] = refererUrl;
+    }
+    
+    console.log('Level 0 request headers:', JSON.stringify(headers, null, 2));
+    
+    // Make POST request to GetRowData endpoint for Level 0
+    const response = await fetch('/Budget/GetRowData', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(level0Params)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error fetching StoreUID! Status: ${response.status}`);
+    }
+    
+    // Get response text
+    const responseText = await response.text();
+    
+    // Log the first part of the response for debugging
+    console.log('Level 0 response (first 200 chars):', responseText.substring(0, 200) + '...');
+    
+    // Extract StoreUID from the response
+    const storeUID = extractStoreUIDFromLevel0(responseText, accountName);
+    
+    if (storeUID === '579') {
+      console.warn(`⚠️ Using default StoreUID '579' for ${accountName}. This may cause issues if this is not the correct StoreUID.`);
+    } else {
+      console.log(`✓ Successfully extracted StoreUID '${storeUID}' for ${accountName}`);
+    }
+    
+    return storeUID;
+  } catch (error) {
+    console.error('Error fetching StoreUID:', error);
+    if (debugModeEnabled) {
+      console.warn(`Could not find StoreUID for account ${accountName}, falling back to default 579`);
+    }
+    return '579'; // Default to SGA StoreUID
+  }
+}
+
+// Extract all StoreUIDs from Level 0 response
+function extractStoreUIDFromLevel0(htmlResponse, accountName) {
+  console.log(`Extracting StoreUID from Level 0 response for ${accountName}`);
+  
+  // Log the complete HTML for debugging
+  if (debugModeEnabled) {
+    // Log HTML in chunks to avoid console truncation
+    logHtmlInChunks(htmlResponse, 'COMPLETE Level 0 HTML Response');
+  }
+  
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlResponse, 'text/html');
+  
+  // Find all td elements with data-id attribute
+  const allDataIdCells = doc.querySelectorAll('td[data-id]');
+  
+  console.log(`Found ${allDataIdCells.length} cells with data-id attribute`);
+  
+  // Filter for 3-digit StoreUIDs (like 573, 579, etc.)
+  const storeUIDRegex = /^[0-9]{3}$/;
+  const validStoreUIDs = [];
+  
+  allDataIdCells.forEach((cell, index) => {
+    const dataId = cell.getAttribute('data-id');
+    const parentRow = cell.closest('tr');
+    const titleCell = parentRow ? parentRow.querySelector('td[title]') : null;
+    const title = titleCell ? titleCell.getAttribute('title') : 'Unknown';
+    
+    console.log(`Data ID ${index + 1}: ${dataId}, Title: ${title}`);
+    
+    // Check if this is a valid 3-digit StoreUID
+    if (storeUIDRegex.test(dataId)) {
+      validStoreUIDs.push({
+        dataId,
+        title,
+        index
+      });
+      console.log(`✓ Found valid 3-digit StoreUID: ${dataId}`);
+    }
+  });
+  
+  console.log(`Found ${validStoreUIDs.length} valid 3-digit StoreUIDs`);
+  
+  // If we found valid StoreUIDs, use the first one
+  if (validStoreUIDs.length > 0) {
+    const firstValidStoreUID = validStoreUIDs[0].dataId;
+    console.log(`Using StoreUID ${firstValidStoreUID} from valid 3-digit data-id`);
+    return firstValidStoreUID;
+  }
+  
+  // If no valid 3-digit StoreUIDs found, try to find any data-id that might be a StoreUID
+  console.log("No valid 3-digit StoreUIDs found, searching for any potential StoreUID...");
+  
+  // Look for any element with data-id attribute
+  const anyDataIdElements = doc.querySelectorAll('[data-id]');
+  console.log(`Found ${anyDataIdElements.length} total elements with data-id attribute`);
+  
+  // Try to find any data-id that looks like a StoreUID (numeric, 1-4 digits)
+  const potentialStoreUIDs = [];
+  const looseStoreUIDRegex = /^[0-9]{1,4}$/;
+  
+  anyDataIdElements.forEach((element, index) => {
+    const dataId = element.getAttribute('data-id');
+    if (looseStoreUIDRegex.test(dataId) && dataId !== '-1') {
+      potentialStoreUIDs.push({
+        dataId,
+        element: element.outerHTML.substring(0, 100),
+        index
+      });
+    }
+  });
+  
+  console.log(`Found ${potentialStoreUIDs.length} potential numeric StoreUIDs:`, potentialStoreUIDs);
+  
+  if (potentialStoreUIDs.length > 0) {
+    const firstPotentialStoreUID = potentialStoreUIDs[0].dataId;
+    console.log(`Using potential StoreUID ${firstPotentialStoreUID} from numeric data-id`);
+    return firstPotentialStoreUID;
+  }
+  
+  // Last resort: look for specific patterns in the HTML that might indicate a StoreUID
+  console.log("No potential StoreUIDs found, searching for patterns in HTML...");
+  
+  // Try to find StoreUID in specific patterns
+  const storeUIDPatterns = [
+    /StoreUID['":\s=]+([0-9]{3})/i,
+    /Store[Ii][Dd]['":\s=]+([0-9]{3})/i,
+    /data-id=['"]([0-9]{3})['"]/i
+  ];
+  
+  for (const pattern of storeUIDPatterns) {
+    const match = htmlResponse.match(pattern);
+    if (match && match[1]) {
+      console.log(`Found StoreUID ${match[1]} using pattern ${pattern}`);
+      return match[1];
+    }
+  }
+  
+  // Fallback to default SGA StoreUID
+  console.warn(`Could not find any StoreUID in the response, falling back to default 579`);
+  return '579';
+}
+
 // Fetch datasheet data via AJAX
 async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
   try {
     console.log(`Fetching datasheet data for ${accountName} (${dataType}):`);
-    console.log('Parameters:', JSON.stringify(parameters, null, 2));
+    console.log('Initial parameters:', JSON.stringify(parameters, null, 2));
     console.log('Using data-href for Referer:', dataHref);
     
     // Extract BudgetId and BudgetYear from dataHref
@@ -1811,11 +1992,30 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
       }
     }
     
-    // 1. Prime the session with a GET request to set the correct BudgetId in session
+    // STEP 1: Prime the session with a GET request to set the correct BudgetId in session
+    console.log("STEP 1: Priming budget session with GET request");
     await primeBudgetSession(dataHref);
     
-    // 2. Initialize budget session context using FetchPercentApprovedValues
+    // STEP 2: Initialize budget session context using FetchPercentApprovedValues
+    console.log(`STEP 2: Initializing budget session with FetchPercentApprovedValues for ${parameters.groupedcategory}`);
     await fetchPercentApprovedValues(parameters.groupedcategory, dataHref);
+    
+    // STEP 3: Fetch the correct StoreUID for this account/department using Level 0 request
+    console.log(`STEP 3: Fetching StoreUID for ${accountName} using Level 0 request`);
+    const correctStoreUID = await fetchStoreUIDForDepartment(parameters, accountName, dataHref);
+    
+    if (correctStoreUID === '579' && debugModeEnabled) {
+      console.warn(`⚠️ Using default StoreUID '579' for ${accountName}. This may cause issues if this is not the correct StoreUID.`);
+    } else {
+      console.log(`✓ Successfully extracted StoreUID '${correctStoreUID}' for ${accountName}`);
+    }
+    
+    // STEP 4: Update parameters with the correct StoreUID for Level 2 request
+    const originalStoreUID = parameters.StoreUID;
+    parameters.StoreUID = correctStoreUID;
+    
+    console.log(`STEP 4: Updated StoreUID from '${originalStoreUID}' to '${correctStoreUID}' for Level 2 request`);
+    console.log('Final parameters for Level 2 request:', JSON.stringify(parameters, null, 2));
     
     // Construct the full Referer URL
     const baseUrl = window.location.origin; // e.g., https://theesa.budgyt.com
@@ -1835,7 +2035,7 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
       headers['Referer'] = refererUrl;
     }
     
-    console.log('GetRowData request headers:', JSON.stringify(headers, null, 2));
+    console.log('STEP 5: Making Level 2 GetRowData request with headers:', JSON.stringify(headers, null, 2));
     
     // Make POST request to GetRowData endpoint with JSON format
     const response = await fetch('/Budget/GetRowData', {
