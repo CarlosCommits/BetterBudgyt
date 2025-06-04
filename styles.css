@@ -808,3 +808,57 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   color: #856404;
   font-size: 18px;
 }
+
+/* Comparison modal header controls */
+.betterbudgyt-comparison-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.betterbudgyt-comparison-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.betterbudgyt-comparison-toggle-container input[type="checkbox"] {
+  display: none;
+}
+
+.betterbudgyt-comparison-toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: #ccc;
+  border-radius: 12px;
+  transition: background-color 0.3s;
+}
+
+.betterbudgyt-comparison-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: white;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+}
+
+.betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider {
+  background-color: #4CAF50;
+}
+
+.betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.betterbudgyt-comparison-toggle-label {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}

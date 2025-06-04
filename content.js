@@ -2780,53 +2780,78 @@ function showComparisonModal(comparisonData) {
   const dataset1DeptCount = comparisonData.dataset1.departments?.length || 0;
   const dataset2DeptCount = comparisonData.dataset2.departments?.length || 0;
   
-  // Create modal content
-  modal.innerHTML = `
-    <div class="betterbudgyt-comparison-modal-content">
-      <div class="betterbudgyt-comparison-modal-header">
-        <h2>Datasheet Comparison</h2>
-        <button class="betterbudgyt-comparison-modal-close">&times;</button>
-      </div>
-      <div class="betterbudgyt-comparison-modal-body">
-        <div class="betterbudgyt-comparison-info">
-          <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-1">
-            <h3>${comparisonData.dataset1.accountName} - ${comparisonData.dataset1.dataType}</h3>
-            <p>Departments: ${dataset1DeptCount}</p>
-            <p>Transactions: ${comparisonData.dataset1.transactions?.length || 0}</p>
-            <p>Total: ${formatNumber(comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0)}</p>
-          </div>
-          <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-2">
-            <h3>${comparisonData.dataset2.accountName} - ${comparisonData.dataset2.dataType}</h3>
-            <p>Departments: ${dataset2DeptCount}</p>
-            <p>Transactions: ${comparisonData.dataset2.transactions?.length || 0}</p>
-            <p>Total: ${formatNumber(comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0)}</p>
+  // Load the current hide months setting
+  chrome.storage.sync.get({ comparisonHideMonths: false }, (settings) => {
+    const hideMonths = settings.comparisonHideMonths;
+    
+    // Create modal content
+    modal.innerHTML = `
+      <div class="betterbudgyt-comparison-modal-content">
+        <div class="betterbudgyt-comparison-modal-header">
+          <h2>Datasheet Comparison</h2>
+          <div class="betterbudgyt-comparison-header-controls">
+            <label class="betterbudgyt-comparison-toggle-container" title="Hide month columns to show only totals">
+              <input type="checkbox" id="hideMonthsToggle" ${hideMonths ? 'checked' : ''}>
+              <span class="betterbudgyt-comparison-toggle-slider"></span>
+              <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
+            </label>
+            <button class="betterbudgyt-comparison-modal-close">&times;</button>
           </div>
         </div>
-        <div class="betterbudgyt-comparison-table-container">
-          ${generateComparisonTable(comparisonData)}
+        <div class="betterbudgyt-comparison-modal-body">
+          <div class="betterbudgyt-comparison-info">
+            <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-1">
+              <h3>${comparisonData.dataset1.accountName} - ${comparisonData.dataset1.dataType}</h3>
+              <p>Departments: ${dataset1DeptCount}</p>
+              <p>Transactions: ${comparisonData.dataset1.transactions?.length || 0}</p>
+              <p>Total: ${formatNumber(comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0)}</p>
+            </div>
+            <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-2">
+              <h3>${comparisonData.dataset2.accountName} - ${comparisonData.dataset2.dataType}</h3>
+              <p>Departments: ${dataset2DeptCount}</p>
+              <p>Transactions: ${comparisonData.dataset2.transactions?.length || 0}</p>
+              <p>Total: ${formatNumber(comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0)}</p>
+            </div>
+          </div>
+          <div class="betterbudgyt-comparison-table-container">
+            ${generateComparisonTable(comparisonData, hideMonths)}
+          </div>
         </div>
       </div>
-    </div>
-  `;
-  
-  // Add to document
-  document.body.appendChild(modal);
-  
-  // Add event listener for close button
-  modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
-    modal.remove();
-  });
-  
-  // Close modal when clicking outside
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal) {
+    `;
+    
+    // Add to document
+    document.body.appendChild(modal);
+    
+    // Add event listener for toggle
+    const toggleCheckbox = modal.querySelector('#hideMonthsToggle');
+    toggleCheckbox.addEventListener('change', (event) => {
+      const newHideMonths = event.target.checked;
+      
+      // Save the setting
+      chrome.storage.sync.set({ comparisonHideMonths: newHideMonths });
+      
+      // Regenerate the table with new setting
+      const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+      tableContainer.innerHTML = generateComparisonTable(comparisonData, newHideMonths);
+    });
+    
+    // Add event listener for close button
+    modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
       modal.remove();
-    }
+    });
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        modal.remove();
+      }
+    });
   });
 }
 
 // Generate comparison table HTML
-function generateComparisonTable(comparisonData) {
+function generateComparisonTable(comparisonData, hideMonths = false) {
   const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
   
   // Calculate scenario totals across all departments
@@ -2878,7 +2903,7 @@ function generateComparisonTable(comparisonData) {
           <th>Dataset</th>
           <th>Description</th>
           <th>Vendor</th>
-          ${months.map(month => `<th>${month}</th>`).join('')}
+          ${hideMonths ? '' : months.map(month => `<th>${month}</th>`).join('')}
           <th>Total</th>
         </tr>
       </thead>
@@ -2906,7 +2931,7 @@ function generateComparisonTable(comparisonData) {
             <td>${comparisonData.dataset1.dataType}</td>
             <td>${transaction.description}</td>
             <td>${transaction.vendor}</td>
-            ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+            ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
             <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
           </tr>
         `;
@@ -2931,7 +2956,7 @@ function generateComparisonTable(comparisonData) {
           <td>${comparisonData.dataset1.dataType}</td>
           <td>${transaction.description}</td>
           <td>${transaction.vendor}</td>
-          ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+          ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
           <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
         </tr>
       `;
@@ -2966,7 +2991,7 @@ function generateComparisonTable(comparisonData) {
             <td>${comparisonData.dataset2.dataType}</td>
             <td>${transaction.description}</td>
             <td>${transaction.vendor}</td>
-            ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+            ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
             <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
           </tr>
         `;
@@ -2991,7 +3016,7 @@ function generateComparisonTable(comparisonData) {
           <td>${comparisonData.dataset2.dataType}</td>
           <td>${transaction.description}</td>
           <td>${transaction.vendor}</td>
-          ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+          ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
           <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
         </tr>
       `;
@@ -3010,20 +3035,20 @@ function generateComparisonTable(comparisonData) {
     <tr class="betterbudgyt-comparison-row-scenario-total betterbudgyt-comparison-row-dataset-1">
       <td>${comparisonData.dataset1.dataType}</td>
       <td colspan="2">${comparisonData.dataset1.dataType} Total</td>
-      ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset1Total.monthly[month])}</td>`).join('')}
+      ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset1Total.monthly[month])}</td>`).join('')}
       <td class="betterbudgyt-comparison-total">${formatNumber(dataset1Total.total)}</td>
     </tr>
     <tr class="betterbudgyt-comparison-row-scenario-total betterbudgyt-comparison-row-dataset-2">
       <td>${comparisonData.dataset2.dataType}</td>
       <td colspan="2">${comparisonData.dataset2.dataType} Total</td>
-      ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset2Total.monthly[month])}</td>`).join('')}
+      ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset2Total.monthly[month])}</td>`).join('')}
       <td class="betterbudgyt-comparison-total">${formatNumber(dataset2Total.total)}</td>
     </tr>
     <tr class="betterbudgyt-comparison-row-difference">
       <td>Difference</td>
-      <td colspan="2">${comparisonData.dataset2.dataType} - ${comparisonData.dataset1.dataType}</td>
-      <td colspan="${months.length}"></td>
-      <td class="betterbudgyt-comparison-total">${formatNumber(dataset2Total.total - dataset1Total.total)}</td>
+      <td colspan="2">${comparisonData.dataset1.dataType} - ${comparisonData.dataset2.dataType}</td>
+      <td colspan="${hideMonths ? 0 : months.length}"></td>
+      <td class="betterbudgyt-comparison-total">${formatNumber(dataset1Total.total - dataset2Total.total)}</td>
     </tr>
   `;
   
