@@ -2829,6 +2829,47 @@ function showComparisonModal(comparisonData) {
 function generateComparisonTable(comparisonData) {
   const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
   
+  // Calculate scenario totals across all departments
+  const dataset1Total = {
+    monthly: {},
+    total: 0
+  };
+  const dataset2Total = {
+    monthly: {},
+    total: 0
+  };
+  
+  // Initialize monthly totals
+  months.forEach(month => {
+    dataset1Total.monthly[month] = 0;
+    dataset2Total.monthly[month] = 0;
+  });
+  
+  // Calculate totals from grand totals or regular totals
+  if (comparisonData.dataset1.grandTotals) {
+    months.forEach(month => {
+      dataset1Total.monthly[month] = comparisonData.dataset1.grandTotals[month] || 0;
+    });
+    dataset1Total.total = comparisonData.dataset1.grandTotals.total || 0;
+  } else if (comparisonData.dataset1.totals) {
+    months.forEach(month => {
+      dataset1Total.monthly[month] = comparisonData.dataset1.totals[month] || 0;
+    });
+    dataset1Total.total = comparisonData.dataset1.totals.total || 0;
+  }
+  
+  if (comparisonData.dataset2.grandTotals) {
+    months.forEach(month => {
+      dataset2Total.monthly[month] = comparisonData.dataset2.grandTotals[month] || 0;
+    });
+    dataset2Total.total = comparisonData.dataset2.grandTotals.total || 0;
+  } else if (comparisonData.dataset2.totals) {
+    months.forEach(month => {
+      dataset2Total.monthly[month] = comparisonData.dataset2.totals[month] || 0;
+    });
+    dataset2Total.total = comparisonData.dataset2.totals.total || 0;
+  }
+  
   // Generate table HTML
   let tableHtml = `
     <table class="betterbudgyt-comparison-table">
@@ -2870,27 +2911,7 @@ function generateComparisonTable(comparisonData) {
           </tr>
         `;
       });
-      
-      // Add department subtotal row
-      tableHtml += `
-        <tr class="betterbudgyt-comparison-row-subtotal betterbudgyt-comparison-row-dataset-1">
-          <td>${comparisonData.dataset1.dataType}</td>
-          <td colspan="2">Department Total</td>
-          ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dept.totals[month] || 0)}</td>`).join('')}
-          <td class="betterbudgyt-comparison-total">${formatNumber(dept.totals.total || 0)}</td>
-        </tr>
-      `;
     });
-    
-    // Add grand total row for dataset 1
-    tableHtml += `
-      <tr class="betterbudgyt-comparison-row-total betterbudgyt-comparison-row-dataset-1">
-        <td>${comparisonData.dataset1.dataType}</td>
-        <td colspan="2">GRAND TOTAL</td>
-        ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(comparisonData.dataset1.grandTotals?.[month] || 0)}</td>`).join('')}
-        <td class="betterbudgyt-comparison-total">${formatNumber(comparisonData.dataset1.grandTotals?.total || 0)}</td>
-      </tr>
-    `;
   } else {
     // Fallback to flat list if no departments
     // First add a header for the dataset
@@ -2915,16 +2936,6 @@ function generateComparisonTable(comparisonData) {
         </tr>
       `;
     });
-    
-    // Add total row for dataset 1
-    tableHtml += `
-      <tr class="betterbudgyt-comparison-row-total betterbudgyt-comparison-row-dataset-1">
-        <td>${comparisonData.dataset1.dataType}</td>
-        <td colspan="2">TOTAL</td>
-        ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(comparisonData.dataset1.totals[month] || 0)}</td>`).join('')}
-        <td class="betterbudgyt-comparison-total">${formatNumber(comparisonData.dataset1.totals.total || 0)}</td>
-      </tr>
-    `;
   }
   
   // Add separator row
@@ -2960,27 +2971,7 @@ function generateComparisonTable(comparisonData) {
           </tr>
         `;
       });
-      
-      // Add department subtotal row
-      tableHtml += `
-        <tr class="betterbudgyt-comparison-row-subtotal betterbudgyt-comparison-row-dataset-2">
-          <td>${comparisonData.dataset2.dataType}</td>
-          <td colspan="2">Department Total</td>
-          ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dept.totals[month] || 0)}</td>`).join('')}
-          <td class="betterbudgyt-comparison-total">${formatNumber(dept.totals.total || 0)}</td>
-        </tr>
-      `;
     });
-    
-    // Add grand total row for dataset 2
-    tableHtml += `
-      <tr class="betterbudgyt-comparison-row-total betterbudgyt-comparison-row-dataset-2">
-        <td>${comparisonData.dataset2.dataType}</td>
-        <td colspan="2">GRAND TOTAL</td>
-        ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(comparisonData.dataset2.grandTotals?.[month] || 0)}</td>`).join('')}
-        <td class="betterbudgyt-comparison-total">${formatNumber(comparisonData.dataset2.grandTotals?.total || 0)}</td>
-      </tr>
-    `;
   } else {
     // Fallback to flat list if no departments
     // First add a header for the dataset
@@ -3005,17 +2996,36 @@ function generateComparisonTable(comparisonData) {
         </tr>
       `;
     });
-    
-    // Add total row for dataset 2
-    tableHtml += `
-      <tr class="betterbudgyt-comparison-row-total betterbudgyt-comparison-row-dataset-2">
-        <td>${comparisonData.dataset2.dataType}</td>
-        <td colspan="2">TOTAL</td>
-        ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(comparisonData.dataset2.totals[month] || 0)}</td>`).join('')}
-        <td class="betterbudgyt-comparison-total">${formatNumber(comparisonData.dataset2.totals.total || 0)}</td>
-      </tr>
-    `;
   }
+  
+  // Add final summary section with scenario totals and difference
+  tableHtml += `
+    <tr class="betterbudgyt-comparison-row-separator">
+      <td colspan="${3 + months.length + 1}"></td>
+    </tr>
+  `;
+  
+  // Add scenario total rows
+  tableHtml += `
+    <tr class="betterbudgyt-comparison-row-scenario-total betterbudgyt-comparison-row-dataset-1">
+      <td>${comparisonData.dataset1.dataType}</td>
+      <td colspan="2">${comparisonData.dataset1.dataType} Total</td>
+      ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset1Total.monthly[month])}</td>`).join('')}
+      <td class="betterbudgyt-comparison-total">${formatNumber(dataset1Total.total)}</td>
+    </tr>
+    <tr class="betterbudgyt-comparison-row-scenario-total betterbudgyt-comparison-row-dataset-2">
+      <td>${comparisonData.dataset2.dataType}</td>
+      <td colspan="2">${comparisonData.dataset2.dataType} Total</td>
+      ${months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset2Total.monthly[month])}</td>`).join('')}
+      <td class="betterbudgyt-comparison-total">${formatNumber(dataset2Total.total)}</td>
+    </tr>
+    <tr class="betterbudgyt-comparison-row-difference">
+      <td>Difference</td>
+      <td colspan="2">${comparisonData.dataset2.dataType} - ${comparisonData.dataset1.dataType}</td>
+      <td colspan="${months.length}"></td>
+      <td class="betterbudgyt-comparison-total">${formatNumber(dataset2Total.total - dataset1Total.total)}</td>
+    </tr>
+  `;
   
   // Close table
   tableHtml += `
