@@ -774,3 +774,37 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
     color: #333;
     margin: 0;
 }
+
+/* Scenario total row styles */
+.betterbudgyt-comparison-row-scenario-total {
+  font-weight: bold;
+  border-top: 2px solid #333;
+  border-bottom: 1px solid #333;
+  font-size: 15px;
+}
+
+.betterbudgyt-comparison-row-scenario-total.betterbudgyt-comparison-row-dataset-1 {
+  background-color: rgba(74, 144, 226, 0.25);
+}
+
+.betterbudgyt-comparison-row-scenario-total.betterbudgyt-comparison-row-dataset-2 {
+  background-color: rgba(126, 211, 33, 0.25);
+}
+
+/* Difference row styles */
+.betterbudgyt-comparison-row-difference {
+  font-weight: bold;
+  background-color: #fff3cd;
+  border-top: 2px solid #ffc107;
+  border-bottom: 2px solid #ffc107;
+  font-size: 16px;
+}
+
+.betterbudgyt-comparison-row-difference td {
+  padding: 12px !important;
+}
+
+.betterbudgyt-comparison-row-difference .betterbudgyt-comparison-total {
+  color: #856404;
+  font-size: 18px;
+}
