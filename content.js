@@ -364,7 +364,9 @@ chrome.storage.sync.get({
   varianceHighlightEnabled: false,
   calculatorEnabled: true, // Default to true
   comparisonModeEnabled: false, // Default to false
-  debugModeEnabled: false // Default for debug mode
+  debugModeEnabled: false, // Default for debug mode
+  comparisonHideMonths: false,
+  comparisonClassTotalsOnly: false
 }, async (settings) => {
   currentSettings = { // Explicitly set currentSettings, excluding calculatorEnabled
     variance1: settings.variance1,
@@ -937,6 +939,10 @@ function findParentCategory(row) {
 function extractCellParameters(cell) {
   console.log('Extracting cell parameters from:', cell);
   
+  // Track scenario metadata derived from data-href (if present)
+  let extractedScenarioId = null;
+  let extractedYear = null;
+  
   // Get the row containing the cell
   const row = cell.closest('tr');
   if (!row) {
@@ -972,9 +978,6 @@ function extractCellParameters(cell) {
     // Extract scenario ID from the data-href URL path
     // Format is typically: /Budget/DataInput/86/2026 or similar
     const pathMatch = dataHref.match(/\/Budget\/DataInput\/(\d+)\/(\d+)/);
-    let extractedScenarioId = null;
-    let extractedYear = null;
-    
     if (pathMatch && pathMatch.length >= 3) {
       extractedScenarioId = pathMatch[1];
       extractedYear = pathMatch[2];
@@ -1073,8 +1076,9 @@ function extractCellParameters(cell) {
   // Determine column type
   const columnType = getColumnType(cell);
   
-  // Get scenario ID based on column type
-  const scenarioId = getScenarioId(columnType);
+  // Prefer scenario ID/year derived from data-href path; otherwise fall back by column type
+  const scenarioId = extractedScenarioId || getScenarioId(columnType);
+  const year = extractedYear || null;
   
   // Create groupedcategory
   const groupedcategory = `${parentCategoryUID}|${categoryUID}`;
@@ -1083,7 +1087,9 @@ function extractCellParameters(cell) {
     categoryUID,
     groupedcategory,
     scenarioId,
-    columnType
+    columnType,
+    dataHref,
+    year
   };
   
   console.log('Extracted cell parameters:', result);
@@ -1297,21 +1303,19 @@ function performComparison() {
   // Start AJAX-based data fetching
   openDatasheetSequentially(cell1Data, cell2Data)
     .then(comparisonData => {
-      // Hide loading indicator
       hideComparisonLoadingIndicator();
-      
-      // Show comparison modal with data
       showComparisonModal(comparisonData);
-      
       console.log('Comparison completed successfully');
     })
     .catch(error => {
-      // Hide loading indicator
       hideComparisonLoadingIndicator();
-      
-      // Show error message
       console.error('Comparison error:', error);
-      alert('Error comparing datasheets: ' + error.message);
+      const msg = error?.message || 'Unknown error';
+      if (msg.includes('Extension context invalidated')) {
+        alert('Comparison failed because Chrome discarded the extension context (usually after a tab reload). Please reload the Budgyt page and try again.');
+      } else {
+        alert('Error comparing datasheets: ' + msg);
+      }
     });
 }
 
@@ -1736,7 +1740,7 @@ async function primeBudgetSession(dataHref) {
 }
 
 // Initialize budget session context before fetching data
-async function fetchPercentApprovedValues(groupedcategory, dataHref) {
+async function fetchPercentApprovedValues(groupedcategory, dataHref, storeCsv) {
   try {
     console.log(`Initializing budget session with FetchPercentApprovedValues for ${groupedcategory}`);
     
@@ -1760,7 +1764,7 @@ async function fetchPercentApprovedValues(groupedcategory, dataHref) {
     
     // Payload for FetchPercentApprovedValues
     const payload = {
-      StoreUIDCSV: '567,568,569,570,571,572,573,574,575,576,577,578,579,582,580',
+      StoreUIDCSV: storeCsv || '567,568,569,570,571,572,573,574,575,576,577,578,579,582,580',
       groupedcategory: groupedcategory
     };
     
@@ -1878,174 +1882,80 @@ async function fetchStoreUIDForDepartment(parameters, accountName, dataHref) {
 function extractStoreUIDFromLevel0(htmlResponse, accountName) {
   console.log(`Extracting StoreUIDs from Level 0 response for ${accountName}`);
   
-  // Log the complete HTML for debugging
   if (debugModeEnabled) {
-    // Log HTML in chunks to avoid console truncation
     logHtmlInChunks(htmlResponse, 'COMPLETE Level 0 HTML Response');
   }
   
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlResponse, 'text/html');
-  
-  // Map to store unique StoreUIDs (key: storeUID, value: department info)
   const uniqueStoreUIDs = new Map();
   
-  // First, extract all department titles from the HTML
-  const departmentTitles = [];
-  const departmentTitleRegex = /<td title="([^"]+)">/g;
-  let titleMatch;
+  // Helper to normalize a department/class name
+  const normalizeName = (name) => (name || '').replace(/\s+/g, ' ').trim();
   
-  while ((titleMatch = departmentTitleRegex.exec(htmlResponse)) !== null) {
-    if (titleMatch[1] && titleMatch[1].includes(' - ')) {
-      departmentTitles.push(titleMatch[1]);
-    }
-  }
-  
-  console.log(`Found ${departmentTitles.length} department titles in HTML:`, departmentTitles);
-  
-  // Method 1: Look for hdnStoreUID elements directly
-  const hdnStoreUIDElements = doc.querySelectorAll('td[id="hdnStoreUID"]');
-  console.log(`Found ${hdnStoreUIDElements.length} elements with id="hdnStoreUID"`);
-  
-  hdnStoreUIDElements.forEach((element, index) => {
-    const storeUID = element.textContent.trim();
+  // Walk rows that carry store info
+  const candidateRows = Array.from(doc.querySelectorAll('tr'));
+  candidateRows.forEach((row, index) => {
+    const storeCell = row.querySelector('td#hdnStoreUID');
+    if (!storeCell) return;
     
-    // Skip invalid StoreUIDs or already processed ones
-    if (storeUID === '-1' || !storeUID || uniqueStoreUIDs.has(storeUID)) {
-      console.log(`Skipping StoreUID: ${storeUID} (invalid or duplicate)`);
-      return;
+    const storeUID = storeCell.textContent.trim();
+    if (!storeUID || storeUID === '-1' || uniqueStoreUIDs.has(storeUID)) return;
+    
+    // Department/Class label: prefer title attribute, else visible text of first td
+    let departmentName = '';
+    const titleCell = row.querySelector('td[title]') || row.querySelector('td.title');
+    if (titleCell) {
+      departmentName = titleCell.getAttribute('title') || titleCell.textContent;
+    } else {
+      const firstTd = row.querySelector('td');
+      if (firstTd) departmentName = firstTd.textContent;
     }
     
-    // Get department name from our extracted titles array
-    let departmentName = 'Unknown Department';
-    if (index < departmentTitles.length) {
-      departmentName = departmentTitles[index];
-    }
+    departmentName = normalizeName(departmentName);
+    if (!departmentName) departmentName = `Class ${storeUID}`;
+    
+    // DeptUID if present
+    const deptCandidate = row.querySelector('[data-deptid]') || row.querySelector('[data-id]');
+    const deptUID = deptCandidate ? (deptCandidate.getAttribute('data-deptid') || deptCandidate.getAttribute('data-id')) : null;
     
     uniqueStoreUIDs.set(storeUID, {
       storeUID,
       departmentName,
-      source: 'hdnStoreUID element'
+      deptUID: deptUID || '-1',
+      source: 'hdnStoreUID row',
+      rowIndex: index
     });
-    
-    console.log(`✓ Found valid StoreUID: ${storeUID} for department: ${departmentName}`);
   });
   
-  // Method 2: If no hdnStoreUID elements found, try data-id attributes
+  // Last resort: regex fallback if nothing parsed
   if (uniqueStoreUIDs.size === 0) {
-    console.log("No hdnStoreUID elements found, trying data-id attributes...");
-    
-    // Find all td elements with data-id attribute
-    const allDataIdCells = doc.querySelectorAll('td[data-id]');
-    console.log(`Found ${allDataIdCells.length} cells with data-id attribute`);
-    
-    // Filter for valid StoreUIDs (numeric, not -1)
-    const storeUIDRegex = /^[0-9]{1,4}$/;
-    let validDataIdCount = 0;
-    
-    allDataIdCells.forEach((cell) => {
-      const dataId = cell.getAttribute('data-id');
-      
-      // Skip invalid StoreUIDs or already processed ones
-      if (dataId === '-1' || !storeUIDRegex.test(dataId) || uniqueStoreUIDs.has(dataId)) {
-        return;
-      }
-      
-      // Get department name from our extracted titles array
-      let departmentName = 'Unknown Department';
-      if (validDataIdCount < departmentTitles.length) {
-        departmentName = departmentTitles[validDataIdCount];
-        validDataIdCount++;
-      }
-      
-      uniqueStoreUIDs.set(dataId, {
-        storeUID: dataId,
-        departmentName,
-        source: 'data-id attribute'
-      });
-      
-      console.log(`✓ Found valid StoreUID: ${dataId} for department: ${departmentName}`);
-    });
-  }
-  
-  // Method 3: If still no results, use regex on raw HTML
-  if (uniqueStoreUIDs.size === 0) {
-    console.log("No StoreUIDs found via DOM methods, using regex on raw HTML...");
-    
-    // Find all hdnStoreUID elements with regex
-    const hdnStoreUIDRegex = /id="hdnStoreUID">([0-9]+)<\/td>/g;
+    const regex = /id="hdnStoreUID">([0-9]+)<\/td>/g;
     let match;
-    let matchCount = 0;
-    
-    while ((match = hdnStoreUIDRegex.exec(htmlResponse)) !== null) {
-      const storeUID = match[1];
-      if (storeUID !== '-1' && !uniqueStoreUIDs.has(storeUID)) {
-        // Get department name from our extracted titles array
-        let departmentName = 'Unknown Department';
-        if (matchCount < departmentTitles.length) {
-          departmentName = departmentTitles[matchCount];
-          matchCount++;
-        }
-        
-        uniqueStoreUIDs.set(storeUID, {
-          storeUID,
-          departmentName,
-          source: 'regex match'
+    while ((match = regex.exec(htmlResponse)) !== null) {
+      const uid = match[1];
+      if (!uniqueStoreUIDs.has(uid)) {
+        uniqueStoreUIDs.set(uid, {
+          storeUID: uid,
+          departmentName: `Class ${uid}`,
+          deptUID: '-1',
+          source: 'regex fallback'
         });
-        
-        console.log(`✓ Found valid StoreUID: ${storeUID} for department: ${departmentName}`);
-      }
-    }
-    
-    console.log(`Found ${uniqueStoreUIDs.size} unique StoreUIDs using regex`);
-  }
-  
-  // Method 4: Last resort - look for any data-id pattern in HTML
-  if (uniqueStoreUIDs.size === 0) {
-    console.log("No StoreUIDs found with previous methods, searching for any data-id pattern...");
-    
-    const dataIdRegex = /data-id="([0-9]{1,4})"/g;
-    let match;
-    let matchCount = 0;
-    
-    while ((match = dataIdRegex.exec(htmlResponse)) !== null) {
-      const storeUID = match[1];
-      if (storeUID !== '-1' && !uniqueStoreUIDs.has(storeUID)) {
-        // Get department name from our extracted titles array
-        let departmentName = 'Unknown Department';
-        if (matchCount < departmentTitles.length) {
-          departmentName = departmentTitles[matchCount];
-          matchCount++;
-        }
-        
-        uniqueStoreUIDs.set(storeUID, {
-          storeUID,
-          departmentName,
-          source: 'data-id regex'
-        });
-        
-        console.log(`✓ Found valid StoreUID: ${storeUID} for department: ${departmentName}`);
       }
     }
   }
   
-  // Convert Map to Array
   const departmentStoreUIDs = Array.from(uniqueStoreUIDs.values());
+  console.log(`Found ${departmentStoreUIDs.length} unique StoreUID/class pairs for ${accountName}:`, 
+    departmentStoreUIDs.map(d => `${d.storeUID}:${d.departmentName}`).join('; '));
   
-  // Log results
-  console.log(`Found ${departmentStoreUIDs.length} unique valid StoreUID + department pairs:`, 
-    departmentStoreUIDs.map(d => `${d.storeUID}: ${d.departmentName}`).join(', '));
+  if (departmentStoreUIDs.length > 0) return departmentStoreUIDs;
   
-  // If we found valid StoreUIDs, return the array
-  if (departmentStoreUIDs.length > 0) {
-    return departmentStoreUIDs;
-  }
-  
-  // Fallback to default SGA StoreUID if nothing found
   console.warn(`Could not find any StoreUID in the response, falling back to default 579`);
   return [{
     storeUID: '579',
     departmentName: 'SGA',
+    deptUID: '3',
     source: 'default fallback'
   }];
 }
@@ -2074,13 +1984,15 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
     console.log("STEP 1: Priming budget session with GET request");
     await primeBudgetSession(dataHref);
     
-    // STEP 2: Initialize budget session context using FetchPercentApprovedValues
-    console.log(`STEP 2: Initializing budget session with FetchPercentApprovedValues for ${parameters.groupedcategory}`);
-    await fetchPercentApprovedValues(parameters.groupedcategory, dataHref);
-    
-    // STEP 3: Fetch the correct StoreUIDs for all departments using Level 0 request
-    console.log(`STEP 3: Fetching StoreUIDs for ${accountName} using Level 0 request`);
+    // STEP 2: Fetch the correct StoreUIDs for all departments using Level 0 request
+    console.log(`STEP 2: Fetching StoreUIDs for ${accountName} using Level 0 request`);
     const departmentStoreUIDs = await fetchStoreUIDForDepartment(parameters, accountName, dataHref);
+    
+    const storeCsv = departmentStoreUIDs.map(d => d.storeUID).join(',');
+    
+    // STEP 3: Initialize budget session context using FetchPercentApprovedValues with precise store list
+    console.log(`STEP 3: Initializing budget session with FetchPercentApprovedValues for ${parameters.groupedcategory}`);
+    await fetchPercentApprovedValues(parameters.groupedcategory, dataHref, storeCsv);
     
     console.log(`Found ${departmentStoreUIDs.length} departments for ${accountName}:`, 
       departmentStoreUIDs.map(d => `${d.storeUID} (${d.departmentName})`).join(', '));
@@ -2092,90 +2004,112 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
       departments: [],
       transactions: [], // Combined transactions from all departments
       totals: {}, // Will be calculated from all departments
-      grandTotals: {} // Will be calculated from all departments
+      grandTotals: {}, // Will be calculated from all departments
+      failedDepartments: []
     };
     
     // STEP 4 & 5: Fetch data for each department
     console.log(`STEP 4: Fetching data for ${departmentStoreUIDs.length} departments`);
     
-    // Process each department sequentially
+    // Process each department sequentially with single retry on failure
     for (const deptInfo of departmentStoreUIDs) {
-      try {
-        console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID})`);
-        
-        // Clone parameters for this department
-        const deptParameters = JSON.parse(JSON.stringify(parameters));
-        
-        // Update StoreUID for this department
-        deptParameters.StoreUID = deptInfo.storeUID;
-        
-        console.log(`Department parameters:`, JSON.stringify(deptParameters, null, 2));
-        
-        // Construct the full Referer URL
-        const baseUrl = window.location.origin;
-        const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
-        
-        // Headers for the request
-        const headers = {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Accept': 'text/html, */*; q=0.01',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-BetterBudgyt-Request-ID': `${accountName}-${dataType}-${deptInfo.departmentName}-${Date.now()}`
-        };
-        
-        // Add Referer header if we have a data-href
-        if (refererUrl) {
-          headers['Referer'] = refererUrl;
-        }
-        
-        console.log(`STEP 5: Making Level 2 GetRowData request for department ${deptInfo.departmentName}`);
-        
-        // Make POST request to GetRowData endpoint with JSON format
-        const response = await fetch('/Budget/GetRowData', {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify(deptParameters)
-        });
-        
-        console.log(`Response status for ${deptInfo.departmentName}:`, response.status);
-        
-        if (!response.ok) {
-          console.error(`HTTP error for department ${deptInfo.departmentName}! Status: ${response.status}`);
-          continue; // Skip this department but continue with others
-        }
-        
-        // Get response text
-        const responseText = await response.text();
-        
-        // Log raw response for debugging
-        if (debugModeEnabled) {
-          console.log(`Raw response for ${deptInfo.departmentName} (first 500 chars):`, responseText.substring(0, 500) + '...');
-          logHtmlInChunks(responseText, `HTML Response for ${deptInfo.departmentName}`);
-        }
-        
-        // Parse HTML response
-        const deptData = await parseDatasheetHtml(responseText, deptInfo.departmentName);
-        
-        // Add department name to the data
-        deptData.departmentName = deptInfo.departmentName;
-        deptData.storeUID = deptInfo.storeUID;
-        
-        // Add to departments array
-        result.departments.push(deptData);
-        
-        // Add transactions to combined list with department info
-        deptData.transactions.forEach(transaction => {
-          result.transactions.push({
-            ...transaction,
-            departmentName: deptInfo.departmentName,
-            storeUID: deptInfo.storeUID
+      let attempts = 0;
+      let success = false;
+      
+      while (!success && attempts < 2) {
+        try {
+          attempts++;
+          console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}) attempt ${attempts}`);
+          
+          // Clone parameters for this department
+          const deptParameters = JSON.parse(JSON.stringify(parameters));
+          
+          // Update StoreUID and DeptUID for this department
+          deptParameters.StoreUID = deptInfo.storeUID;
+          if (deptInfo.deptUID && deptInfo.deptUID !== '-1') {
+            deptParameters.DeptUID = deptInfo.deptUID;
+          }
+          
+          // Update Stores CSV to only those discovered
+          deptParameters.Stores = storeCsv;
+          
+          console.log(`Department parameters:`, JSON.stringify(deptParameters, null, 2));
+          
+          // Construct the full Referer URL
+          const baseUrl = window.location.origin;
+          const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
+          
+          // Headers for the request
+          const headers = {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Accept': 'text/html, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-BetterBudgyt-Request-ID': `${accountName}-${dataType}-${deptInfo.departmentName}-${Date.now()}`
+          };
+          
+          // Add Referer header if we have a data-href
+          if (refererUrl) {
+            headers['Referer'] = refererUrl;
+          }
+          
+          console.log(`STEP 5: Making Level 2 GetRowData request for department ${deptInfo.departmentName}`);
+          
+          // Make POST request to GetRowData endpoint with JSON format
+          const response = await fetch('/Budget/GetRowData', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(deptParameters)
           });
-        });
-        
-        console.log(`Successfully processed department ${deptInfo.departmentName} with ${deptData.transactions.length} transactions`);
-      } catch (error) {
-        console.error(`Error processing department ${deptInfo.departmentName}:`, error);
-        // Continue with other departments
+          
+          console.log(`Response status for ${deptInfo.departmentName}:`, response.status);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          
+          // Get response text
+          const responseText = await response.text();
+          
+          // Log raw response for debugging
+          if (debugModeEnabled) {
+            console.log(`Raw response for ${deptInfo.departmentName} (first 500 chars):`, responseText.substring(0, 500) + '...');
+            logHtmlInChunks(responseText, `HTML Response for ${deptInfo.departmentName}`);
+          }
+          
+          // Parse HTML response
+          const deptData = await parseDatasheetHtml(responseText, deptInfo.departmentName);
+          
+          // Add department metadata
+          deptData.departmentName = deptInfo.departmentName;
+          deptData.storeUID = deptInfo.storeUID;
+          deptData.deptUID = deptInfo.deptUID;
+          
+          // Add to departments array
+          result.departments.push(deptData);
+          
+          // Add transactions to combined list with department info
+          deptData.transactions.forEach(transaction => {
+            result.transactions.push({
+              ...transaction,
+              departmentName: deptInfo.departmentName,
+              storeUID: deptInfo.storeUID
+            });
+          });
+          
+          console.log(`Successfully processed department ${deptInfo.departmentName} with ${deptData.transactions.length} transactions`);
+          success = true;
+        } catch (error) {
+          console.error(`Error processing department ${deptInfo.departmentName} attempt ${attempts}:`, error);
+          if (attempts >= 2) {
+            result.failedDepartments.push({
+              departmentName: deptInfo.departmentName,
+              storeUID: deptInfo.storeUID,
+              error: error.message
+            });
+          } else {
+            console.warn(`Retrying department ${deptInfo.departmentName}...`);
+          }
+        }
       }
     }
     
@@ -2194,6 +2128,15 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
         result.grandTotals[month] += (dept.totals[month] || 0);
       });
       result.grandTotals.total += (dept.totals.total || 0);
+    });
+    
+    // Deduplicate transactions by vendor/description/total/month sum/storeUID
+    const seen = new Set();
+    result.transactions = result.transactions.filter(tx => {
+      const key = `${tx.vendor || ''}|${tx.description || ''}|${tx.total || 0}|${tx.storeUID || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
     
     console.log('Successfully fetched datasheet data for all departments:', {
@@ -2238,7 +2181,9 @@ async function parseDatasheetHtml(responseText, departmentName) {
     'table > tbody > tr[data-level="3"].budgetdata.bottomLevel.showyear.highlight.level3',
     'table > tbody > tr[data-level="3"].budgetdata.bottomLevel.showyear',
     'table > tbody > tr[data-level="3"].budgetdata.bottomLevel',
-    'table > tbody > tr.budgetdata.bottomLevel'
+    'table > tbody > tr.budgetdata.bottomLevel',
+    'table > tbody > tr[data-level="3"].bottomLevel',
+    'table > tbody > tr[data-level="3"]'
   ];
   
   let transactionRows = [];
@@ -2251,23 +2196,12 @@ async function parseDatasheetHtml(responseText, departmentName) {
     }
   }
   
-  // If no transaction rows found with standard selectors, try a more generic approach
+  // If still no rows, try looking for any row with a vendor cell
   if (transactionRows.length === 0) {
-    console.log('No transaction rows found with standard selectors, trying generic approach');
-    
-    // Look for any row with data-level="3" that isn't a total row
-    transactionRows = Array.from(doc.querySelectorAll('tr[data-level="3"]'))
-      .filter(row => !row.classList.contains('totals') && !row.classList.contains('LevelPercentLY'));
-    
-    console.log(`Found ${transactionRows.length} transaction rows using generic approach`);
-    
-    // If still no rows, try looking for any row with a vendor cell
-    if (transactionRows.length === 0) {
-      transactionRows = Array.from(doc.querySelectorAll('table > tbody > tr'))
-        .filter(row => row.querySelector('.vendor') || row.querySelector('.vendorLst'));
-      
-      console.log(`Found ${transactionRows.length} transaction rows by looking for vendor cells`);
-    }
+    console.log('No transaction rows found with structured selectors, falling back to vendor cell scan');
+    transactionRows = Array.from(doc.querySelectorAll('table > tbody > tr'))
+      .filter(row => row.querySelector('.vendor') || row.querySelector('.vendorLst') || row.querySelector('[data-period]'));
+    console.log(`Found ${transactionRows.length} transaction rows by vendor/data-period cells`);
   }
   
   // Process transaction rows
@@ -2284,7 +2218,8 @@ async function parseDatasheetHtml(responseText, departmentName) {
     'table > tbody > tr[data-level="3"].doNotExpand.showyear.totals',
     'table > tbody > tr[data-level="3"].totals',
     'table > tbody > tr.totals',
-    'table > tbody > tr.doNotExpand.showyear.totals'
+    'table > tbody > tr.doNotExpand.showyear.totals',
+    'table > tbody > tr.total-row'
   ];
   
   let totalRow = null;
@@ -2301,8 +2236,8 @@ async function parseDatasheetHtml(responseText, departmentName) {
   if (!totalRow) {
     const allRows = doc.querySelectorAll('table > tbody > tr');
     for (const row of allRows) {
-      if (row.textContent.includes('Totals')) {
-        console.log('Found total row by text content "Totals"');
+      if (/Total/i.test(row.textContent)) {
+        console.log('Found total row by text content containing "Total"');
         totalRow = row;
         break;
       }
@@ -2333,13 +2268,15 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
       accountName: cell1Data.description,
       dataType: cell1Data.columnType,
       transactions: [],
-      totals: {}
+      totals: {},
+      failedDepartments: []
     },
     dataset2: {
       accountName: cell2Data.description,
       dataType: cell2Data.columnType,
       transactions: [],
-      totals: {}
+      totals: {},
+      failedDepartments: []
     }
   };
   
@@ -2402,7 +2339,8 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
     return comparisonData;
   } catch (error) {
     console.error('Error in datasheet comparison:', error);
-    throw new Error(`Failed to compare datasheets: ${error.message}`);
+    const msg = error?.message || 'Unknown error';
+    throw new Error(`Failed to compare datasheets: ${msg}`);
   }
 }
 
@@ -2764,6 +2702,22 @@ function extractTotalData(row) {
   }
 }
 
+// Utility: check if any departments failed
+function hasFailedDepartments(comparisonData) {
+  return (comparisonData.dataset1.failedDepartments?.length || 0) > 0 ||
+         (comparisonData.dataset2.failedDepartments?.length || 0) > 0;
+}
+
+// Utility: render failed department summary HTML
+function renderFailedSummary(comparisonData) {
+  const failed = [
+    ...(comparisonData.dataset1.failedDepartments || []).map(f => `${comparisonData.dataset1.dataType}: ${f.departmentName || f.storeUID}`),
+    ...(comparisonData.dataset2.failedDepartments || []).map(f => `${comparisonData.dataset2.dataType}: ${f.departmentName || f.storeUID}`)
+  ];
+  if (!failed.length) return '';
+  return `<div class="betterbudgyt-comparison-failed">Skipped/failed: ${failed.join(', ')}</div>`;
+}
+
 // Show comparison modal
 function showComparisonModal(comparisonData) {
   // Remove any existing modal
@@ -2781,8 +2735,9 @@ function showComparisonModal(comparisonData) {
   const dataset2DeptCount = comparisonData.dataset2.departments?.length || 0;
   
   // Load the current hide months setting
-  chrome.storage.sync.get({ comparisonHideMonths: false }, (settings) => {
+  chrome.storage.sync.get({ comparisonHideMonths: false, comparisonClassTotalsOnly: false }, (settings) => {
     const hideMonths = settings.comparisonHideMonths;
+    const classTotalsOnly = settings.comparisonClassTotalsOnly;
     
     // Create modal content
     modal.innerHTML = `
@@ -2795,10 +2750,21 @@ function showComparisonModal(comparisonData) {
               <span class="betterbudgyt-comparison-toggle-slider"></span>
               <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
             </label>
+            <label class="betterbudgyt-comparison-toggle-container" title="Show only class totals (omit individual transactions)">
+              <input type="checkbox" id="classTotalsToggle" ${classTotalsOnly ? 'checked' : ''}>
+              <span class="betterbudgyt-comparison-toggle-slider"></span>
+              <span class="betterbudgyt-comparison-toggle-label">Class Totals Only</span>
+            </label>
             <button class="betterbudgyt-comparison-modal-close">&times;</button>
           </div>
         </div>
         <div class="betterbudgyt-comparison-modal-body">
+          <div class="betterbudgyt-comparison-summary">
+            <div><strong>${comparisonData.dataset1.dataType}</strong>: ${dataset1DeptCount} classes, ${comparisonData.dataset1.transactions?.length || 0} transactions${comparisonData.dataset1.failedDepartments?.length ? `, ${comparisonData.dataset1.failedDepartments.length} failed` : ''}</div>
+            <div><strong>${comparisonData.dataset2.dataType}</strong>: ${dataset2DeptCount} classes, ${comparisonData.dataset2.transactions?.length || 0} transactions${comparisonData.dataset2.failedDepartments?.length ? `, ${comparisonData.dataset2.failedDepartments.length} failed` : ''}</div>
+            ${renderFailedSummary(comparisonData)}
+            <button class="betterbudgyt-comparison-btn-retry" id="retryFailedDepartments" ${hasFailedDepartments(comparisonData) ? '' : 'disabled'}>Retry Failed Classes</button>
+          </div>
           <div class="betterbudgyt-comparison-info">
             <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-1">
               <h3>${comparisonData.dataset1.accountName} - ${comparisonData.dataset1.dataType}</h3>
@@ -2814,7 +2780,7 @@ function showComparisonModal(comparisonData) {
             </div>
           </div>
           <div class="betterbudgyt-comparison-table-container">
-            ${generateComparisonTable(comparisonData, hideMonths)}
+            ${generateComparisonTable(comparisonData, hideMonths, classTotalsOnly)}
           </div>
         </div>
       </div>
@@ -2827,13 +2793,23 @@ function showComparisonModal(comparisonData) {
     const toggleCheckbox = modal.querySelector('#hideMonthsToggle');
     toggleCheckbox.addEventListener('change', (event) => {
       const newHideMonths = event.target.checked;
-      
-      // Save the setting
       chrome.storage.sync.set({ comparisonHideMonths: newHideMonths });
-      
-      // Regenerate the table with new setting
       const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
-      tableContainer.innerHTML = generateComparisonTable(comparisonData, newHideMonths);
+      const currentClassTotalsOnly = modal.querySelector('#classTotalsToggle').checked;
+      tableContainer.innerHTML = generateComparisonTable(comparisonData, newHideMonths, currentClassTotalsOnly);
+    });
+    
+    const classTotalsCheckbox = modal.querySelector('#classTotalsToggle');
+    classTotalsCheckbox.addEventListener('change', (event) => {
+      const newClassTotalsOnly = event.target.checked;
+      chrome.storage.sync.set({ comparisonClassTotalsOnly: newClassTotalsOnly });
+      const currentHideMonths = modal.querySelector('#hideMonthsToggle').checked;
+      const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+      tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, newClassTotalsOnly);
+    });
+    
+    modal.querySelector('#retryFailedDepartments').addEventListener('click', () => {
+      performComparison();
     });
     
     // Add event listener for close button
@@ -2851,7 +2827,7 @@ function showComparisonModal(comparisonData) {
 }
 
 // Generate comparison table HTML
-function generateComparisonTable(comparisonData, hideMonths = false) {
+function generateComparisonTable(comparisonData, hideMonths = false, classTotalsOnly = false) {
   const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
   
   // Calculate scenario totals across all departments
@@ -2924,18 +2900,20 @@ function generateComparisonTable(comparisonData, hideMonths = false) {
         </tr>
       `;
       
-      // Add transaction rows for this department
-      dept.transactions.forEach(transaction => {
-        tableHtml += `
-          <tr class="betterbudgyt-comparison-row-transaction betterbudgyt-comparison-row-dataset-1">
-            <td>${comparisonData.dataset1.dataType}</td>
-            <td>${transaction.description}</td>
-            <td>${transaction.vendor}</td>
-            ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
-            <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
-          </tr>
-        `;
-      });
+      if (!classTotalsOnly) {
+        // Add transaction rows for this department
+        dept.transactions.forEach(transaction => {
+          tableHtml += `
+            <tr class="betterbudgyt-comparison-row-transaction betterbudgyt-comparison-row-dataset-1">
+              <td>${comparisonData.dataset1.dataType}</td>
+              <td>${transaction.description}</td>
+              <td>${transaction.vendor}</td>
+              ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+              <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
+            </tr>
+          `;
+        });
+      }
     });
   } else {
     // Fallback to flat list if no departments
@@ -2984,18 +2962,20 @@ function generateComparisonTable(comparisonData, hideMonths = false) {
         </tr>
       `;
       
-      // Add transaction rows for this department
-      dept.transactions.forEach(transaction => {
-        tableHtml += `
-          <tr class="betterbudgyt-comparison-row-transaction betterbudgyt-comparison-row-dataset-2">
-            <td>${comparisonData.dataset2.dataType}</td>
-            <td>${transaction.description}</td>
-            <td>${transaction.vendor}</td>
-            ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
-            <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
-          </tr>
-        `;
-      });
+      if (!classTotalsOnly) {
+        // Add transaction rows for this department
+        dept.transactions.forEach(transaction => {
+          tableHtml += `
+            <tr class="betterbudgyt-comparison-row-transaction betterbudgyt-comparison-row-dataset-2">
+              <td>${comparisonData.dataset2.dataType}</td>
+              <td>${transaction.description}</td>
+              <td>${transaction.vendor}</td>
+              ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
+              <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
+            </tr>
+          `;
+        });
+      }
     });
   } else {
     // Fallback to flat list if no departments
