@@ -2332,7 +2332,8 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
     };
     
     // STEP 4 & 5: Process data for each department by fetching Level 2 transaction data
-    console.log(`STEP 4: Fetching Level 2 transaction data for ${departmentStoreUIDs.length} departments`);
+    // Use Level 0 totals as pre-filter - skip departments with zero totals to avoid unnecessary API calls
+    console.log(`STEP 4: Fetching Level 2 transaction data for departments with non-zero Level 0 totals`);
     
     const baseUrl = window.location.origin;
     const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
@@ -2344,10 +2345,22 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
     };
     if (refererUrl) headers['Referer'] = refererUrl;
     
-    // Fetch Level 2 transaction data for each department
+    // Fetch Level 2 transaction data for each department (only if Level 0 totals are non-zero)
     for (const deptInfo of departmentStoreUIDs) {
       try {
-        console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID})`);
+        // PRE-CHECK: Use Level 0 totals to skip departments with no data
+        // This avoids unnecessary API calls for empty departments
+        const level0Total = deptInfo.total || 0;
+        const level0HasData = deptInfo.monthly 
+          ? Object.values(deptInfo.monthly).some(v => Math.abs(v) > 0.0001)
+          : false;
+        
+        if (Math.abs(level0Total) < 0.0001 && !level0HasData) {
+          console.log(`Skipping ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}) - Level 0 totals are zero`);
+          continue;
+        }
+        
+        console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}, Level0 total: ${level0Total})`);
         
         // Clone parameters for this department's Level 2 request
         // IMPORTANT: Keep original DeptUID from parameters, only change StoreUID
