@@ -3072,16 +3072,21 @@ function showComparisonModal(comparisonData) {
   const dataset1DeptCount = comparisonData.dataset1.departments?.length || 0;
   const dataset2DeptCount = comparisonData.dataset2.departments?.length || 0;
   
-  // Load the current hide months setting
+  // Calculate totals for summary cards
+  const dataset1Total = comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0;
+  const dataset2Total = comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0;
+  const difference = dataset1Total - dataset2Total;
+  
+  // Load the current settings
   chrome.storage.sync.get({ comparisonHideMonths: false, comparisonClassTotalsOnly: false }, (settings) => {
     const hideMonths = settings.comparisonHideMonths;
     const classTotalsOnly = settings.comparisonClassTotalsOnly;
     
-    // Create modal content
+    // Create modal content with new modern layout
     modal.innerHTML = `
       <div class="betterbudgyt-comparison-modal-content">
         <div class="betterbudgyt-comparison-modal-header">
-          <h2>Datasheet Comparison</h2>
+          <h2>📊 Datasheet Comparison</h2>
           <div class="betterbudgyt-comparison-header-controls">
             <label class="betterbudgyt-comparison-toggle-container" title="Hide month columns to show only totals">
               <input type="checkbox" id="hideMonthsToggle" ${hideMonths ? 'checked' : ''}>
@@ -3097,26 +3102,44 @@ function showComparisonModal(comparisonData) {
           </div>
         </div>
         <div class="betterbudgyt-comparison-modal-body">
-          <div class="betterbudgyt-comparison-summary">
-            <div><strong>${comparisonData.dataset1.dataType}</strong>: ${dataset1DeptCount} classes, ${comparisonData.dataset1.transactions?.length || 0} transactions${comparisonData.dataset1.failedDepartments?.length ? `, ${comparisonData.dataset1.failedDepartments.length} failed` : ''}</div>
-            <div><strong>${comparisonData.dataset2.dataType}</strong>: ${dataset2DeptCount} classes, ${comparisonData.dataset2.transactions?.length || 0} transactions${comparisonData.dataset2.failedDepartments?.length ? `, ${comparisonData.dataset2.failedDepartments.length} failed` : ''}</div>
-            ${renderFailedSummary(comparisonData)}
-            <button class="betterbudgyt-comparison-btn-retry" id="retryFailedDepartments" ${hasFailedDepartments(comparisonData) ? '' : 'disabled'}>Retry Failed Classes</button>
-          </div>
-          <div class="betterbudgyt-comparison-info">
-            <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-1">
-              <h3>${comparisonData.dataset1.accountName} - ${comparisonData.dataset1.dataType}</h3>
-              <p>Departments: ${dataset1DeptCount}</p>
-              <p>Transactions: ${comparisonData.dataset1.transactions?.length || 0}</p>
-              <p>Total: ${formatNumber(comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0)}</p>
+          <!-- Summary Cards -->
+          <div class="betterbudgyt-comparison-summary-section">
+            <div class="betterbudgyt-comparison-summary-cards">
+              <div class="betterbudgyt-summary-card betterbudgyt-summary-card-dataset1">
+                <div class="betterbudgyt-summary-card-title">${comparisonData.dataset1.dataType}</div>
+                <div class="betterbudgyt-summary-card-value">${formatNumber(dataset1Total)}</div>
+                <div class="betterbudgyt-summary-card-subtitle">${dataset1DeptCount} departments · ${comparisonData.dataset1.transactions?.length || 0} transactions</div>
+              </div>
+              <div class="betterbudgyt-summary-card betterbudgyt-summary-card-dataset2">
+                <div class="betterbudgyt-summary-card-title">${comparisonData.dataset2.dataType}</div>
+                <div class="betterbudgyt-summary-card-value">${formatNumber(dataset2Total)}</div>
+                <div class="betterbudgyt-summary-card-subtitle">${dataset2DeptCount} departments · ${comparisonData.dataset2.transactions?.length || 0} transactions</div>
+              </div>
+              <div class="betterbudgyt-summary-card betterbudgyt-summary-card-diff">
+                <div class="betterbudgyt-summary-card-title">Variance</div>
+                <div class="betterbudgyt-summary-card-value">${formatNumber(difference)}</div>
+                <div class="betterbudgyt-summary-card-subtitle">${comparisonData.dataset1.dataType} − ${comparisonData.dataset2.dataType}</div>
+              </div>
             </div>
-            <div class="betterbudgyt-comparison-dataset betterbudgyt-comparison-dataset-2">
-              <h3>${comparisonData.dataset2.accountName} - ${comparisonData.dataset2.dataType}</h3>
-              <p>Departments: ${dataset2DeptCount}</p>
-              <p>Transactions: ${comparisonData.dataset2.transactions?.length || 0}</p>
-              <p>Total: ${formatNumber(comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0)}</p>
+          </div>
+          
+          <!-- Search & Filter Toolbar -->
+          <div class="betterbudgyt-comparison-toolbar">
+            <div class="betterbudgyt-search-container">
+              <svg class="betterbudgyt-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+              </svg>
+              <input type="text" class="betterbudgyt-search-input" id="comparisonSearch" placeholder="Search departments, descriptions, vendors...">
+            </div>
+            <div class="betterbudgyt-filter-chips">
+              <button class="betterbudgyt-filter-chip active" data-filter="all">All</button>
+              <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset1" data-filter="dataset1">${comparisonData.dataset1.dataType}</button>
+              <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset2" data-filter="dataset2">${comparisonData.dataset2.dataType}</button>
             </div>
           </div>
+          
+          <!-- Table Container -->
           <div class="betterbudgyt-comparison-table-container">
             ${generateComparisonTable(comparisonData, hideMonths, classTotalsOnly)}
           </div>
@@ -3127,7 +3150,42 @@ function showComparisonModal(comparisonData) {
     // Add to document
     document.body.appendChild(modal);
     
-    // Add event listener for toggle
+    // Setup search functionality for card-based layout
+    const searchInput = modal.querySelector('#comparisonSearch');
+    searchInput.addEventListener('input', (event) => {
+      const searchTerm = event.target.value.toLowerCase();
+      const cards = modal.querySelectorAll('.betterbudgyt-dept-card');
+      
+      cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        const matches = searchTerm === '' || text.includes(searchTerm);
+        card.style.display = matches ? '' : 'none';
+      });
+    });
+    
+    // Filter chips are less relevant in card view, but keep for "only show depts with data"
+    const filterChips = modal.querySelectorAll('.betterbudgyt-filter-chip');
+    filterChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        filterChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        // Filter chips could be repurposed for other filters in the future
+      });
+    });
+    
+    // Setup department card expand/collapse
+    modal.addEventListener('click', (event) => {
+      const cardHeader = event.target.closest('.betterbudgyt-dept-card-header');
+      if (cardHeader) {
+        const card = cardHeader.closest('.betterbudgyt-dept-card');
+        const body = card.querySelector('.betterbudgyt-dept-card-body');
+        
+        card.classList.toggle('expanded');
+        body.style.display = card.classList.contains('expanded') ? 'block' : 'none';
+      }
+    });
+    
+    // Add event listener for toggle switches
     const toggleCheckbox = modal.querySelector('#hideMonthsToggle');
     toggleCheckbox.addEventListener('change', (event) => {
       const newHideMonths = event.target.checked;
@@ -3146,10 +3204,6 @@ function showComparisonModal(comparisonData) {
       tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, newClassTotalsOnly);
     });
     
-    modal.querySelector('#retryFailedDepartments').addEventListener('click', () => {
-      performComparison();
-    });
-    
     // Add event listener for close button
     modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
       modal.remove();
@@ -3161,222 +3215,205 @@ function showComparisonModal(comparisonData) {
         modal.remove();
       }
     });
+    
+    // Escape key to close
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        modal.remove();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
   });
 }
 
-// Generate comparison table HTML
+// Generate comparison table HTML - Department-first comparison format
 function generateComparisonTable(comparisonData, hideMonths = false, classTotalsOnly = false) {
   const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
   
-  // Calculate scenario totals across all departments
-  const dataset1Total = {
-    monthly: {},
-    total: 0
-  };
-  const dataset2Total = {
-    monthly: {},
-    total: 0
-  };
+  // Calculate grand totals
+  const dataset1Total = comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0;
+  const dataset2Total = comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0;
   
-  // Initialize monthly totals
-  months.forEach(month => {
-    dataset1Total.monthly[month] = 0;
-    dataset2Total.monthly[month] = 0;
+  // Build a map of departments from both datasets for side-by-side comparison
+  const departmentMap = new Map();
+  
+  // Add dataset1 departments
+  (comparisonData.dataset1.departments || []).forEach(dept => {
+    const key = dept.departmentName || dept.storeUID;
+    departmentMap.set(key, {
+      name: dept.departmentName,
+      storeUID: dept.storeUID,
+      dataset1: dept,
+      dataset2: null
+    });
   });
   
-  // Calculate totals from grand totals or regular totals
-  if (comparisonData.dataset1.grandTotals) {
-    months.forEach(month => {
-      dataset1Total.monthly[month] = comparisonData.dataset1.grandTotals[month] || 0;
-    });
-    dataset1Total.total = comparisonData.dataset1.grandTotals.total || 0;
-  } else if (comparisonData.dataset1.totals) {
-    months.forEach(month => {
-      dataset1Total.monthly[month] = comparisonData.dataset1.totals[month] || 0;
-    });
-    dataset1Total.total = comparisonData.dataset1.totals.total || 0;
-  }
+  // Add dataset2 departments
+  (comparisonData.dataset2.departments || []).forEach(dept => {
+    const key = dept.departmentName || dept.storeUID;
+    if (departmentMap.has(key)) {
+      departmentMap.get(key).dataset2 = dept;
+    } else {
+      departmentMap.set(key, {
+        name: dept.departmentName,
+        storeUID: dept.storeUID,
+        dataset1: null,
+        dataset2: dept
+      });
+    }
+  });
   
-  if (comparisonData.dataset2.grandTotals) {
-    months.forEach(month => {
-      dataset2Total.monthly[month] = comparisonData.dataset2.grandTotals[month] || 0;
-    });
-    dataset2Total.total = comparisonData.dataset2.grandTotals.total || 0;
-  } else if (comparisonData.dataset2.totals) {
-    months.forEach(month => {
-      dataset2Total.monthly[month] = comparisonData.dataset2.totals[month] || 0;
-    });
-    dataset2Total.total = comparisonData.dataset2.totals.total || 0;
-  }
+  // Calculate department totals
+  const getDeptTotal = (dept) => {
+    if (!dept) return 0;
+    if (dept.totals?.total) return dept.totals.total;
+    return (dept.transactions || []).reduce((sum, t) => sum + (t.total || 0), 0);
+  };
   
-  // Generate table HTML
+  // Generate simplified table HTML - focused on comparison
   let tableHtml = `
-    <table class="betterbudgyt-comparison-table">
-      <thead>
-        <tr>
-          <th>Dataset</th>
-          <th>Description</th>
-          <th>Vendor</th>
-          ${hideMonths ? '' : months.map(month => `<th>${month}</th>`).join('')}
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div class="betterbudgyt-dept-comparison-list">
   `;
   
-  // Process dataset 1 by department
-  if (comparisonData.dataset1.departments && comparisonData.dataset1.departments.length > 0) {
-    // Display by departments
-    comparisonData.dataset1.departments.forEach(dept => {
-      // Add department header row that spans the entire table
-      const columnCount = 3 + months.length + 1; // Dataset + Description + Vendor + Months + Total
-      tableHtml += `
-        <tr class="betterbudgyt-comparison-row-department betterbudgyt-comparison-row-dataset-1">
-          <td colspan="${columnCount}" class="betterbudgyt-comparison-department-name">
-            ${comparisonData.dataset1.dataType} - ${dept.departmentName} (${dept.storeUID})
-          </td>
-        </tr>
-      `;
-      
-      if (!classTotalsOnly) {
-        // Add transaction rows for this department
-        dept.transactions.forEach(transaction => {
-          tableHtml += `
-            <tr class="betterbudgyt-comparison-row-transaction betterbudgyt-comparison-row-dataset-1">
-              <td>${comparisonData.dataset1.dataType}</td>
-              <td>${transaction.description}</td>
-              <td>${transaction.vendor}</td>
-              ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
-              <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
-            </tr>
-          `;
-        });
-      }
-    });
-  } else {
-    // Fallback to flat list if no departments
-    // First add a header for the dataset
-    const columnCount = 3 + months.length + 1; // Dataset + Description + Vendor + Months + Total
-    tableHtml += `
-      <tr class="betterbudgyt-comparison-row-department betterbudgyt-comparison-row-dataset-1">
-        <td colspan="${columnCount}" class="betterbudgyt-comparison-department-name">
-          ${comparisonData.dataset1.dataType} - ${comparisonData.dataset1.accountName}
-        </td>
-      </tr>
-    `;
+  // Process each department
+  departmentMap.forEach((deptData, deptName) => {
+    const d1Total = getDeptTotal(deptData.dataset1);
+    const d2Total = getDeptTotal(deptData.dataset2);
+    const variance = d1Total - d2Total;
+    const varianceClass = variance > 0 ? 'positive' : variance < 0 ? 'negative' : 'zero';
     
-    // Then add transaction rows
-    comparisonData.dataset1.transactions.forEach(transaction => {
-      tableHtml += `
-        <tr class="betterbudgyt-comparison-row-dataset-1">
-          <td>${comparisonData.dataset1.dataType}</td>
-          <td>${transaction.description}</td>
-          <td>${transaction.vendor}</td>
-          ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
-          <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
-        </tr>
-      `;
-    });
-  }
-  
-  // Add separator row
-  tableHtml += `
-    <tr class="betterbudgyt-comparison-row-separator">
-      <td colspan="${3 + months.length + 1}"></td>
-    </tr>
-  `;
-  
-  // Process dataset 2 by department
-  if (comparisonData.dataset2.departments && comparisonData.dataset2.departments.length > 0) {
-    // Display by departments
-    comparisonData.dataset2.departments.forEach(dept => {
-      // Add department header row that spans the entire table
-      const columnCount = 3 + months.length + 1; // Dataset + Description + Vendor + Months + Total
-      tableHtml += `
-        <tr class="betterbudgyt-comparison-row-department betterbudgyt-comparison-row-dataset-2">
-          <td colspan="${columnCount}" class="betterbudgyt-comparison-department-name">
-            ${comparisonData.dataset2.dataType} - ${dept.departmentName} (${dept.storeUID})
-          </td>
-        </tr>
-      `;
-      
-      if (!classTotalsOnly) {
-        // Add transaction rows for this department
-        dept.transactions.forEach(transaction => {
-          tableHtml += `
-            <tr class="betterbudgyt-comparison-row-transaction betterbudgyt-comparison-row-dataset-2">
-              <td>${comparisonData.dataset2.dataType}</td>
-              <td>${transaction.description}</td>
-              <td>${transaction.vendor}</td>
-              ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
-              <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
-            </tr>
-          `;
-        });
-      }
-    });
-  } else {
-    // Fallback to flat list if no departments
-    // First add a header for the dataset
-    const columnCount = 3 + months.length + 1; // Dataset + Description + Vendor + Months + Total
-    tableHtml += `
-      <tr class="betterbudgyt-comparison-row-department betterbudgyt-comparison-row-dataset-2">
-        <td colspan="${columnCount}" class="betterbudgyt-comparison-department-name">
-          ${comparisonData.dataset2.dataType} - ${comparisonData.dataset2.accountName}
-        </td>
-      </tr>
-    `;
+    const d1Count = deptData.dataset1?.transactions?.length || 0;
+    const d2Count = deptData.dataset2?.transactions?.length || 0;
     
-    // Then add transaction rows
-    comparisonData.dataset2.transactions.forEach(transaction => {
-      tableHtml += `
-        <tr class="betterbudgyt-comparison-row-dataset-2">
-          <td>${comparisonData.dataset2.dataType}</td>
-          <td>${transaction.description}</td>
-          <td>${transaction.vendor}</td>
-          ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(transaction.monthly[month] || 0)}</td>`).join('')}
-          <td class="betterbudgyt-comparison-total">${formatNumber(transaction.total)}</td>
-        </tr>
-      `;
-    });
-  }
+    tableHtml += `
+      <div class="betterbudgyt-dept-card" data-dept="${deptData.storeUID}">
+        <div class="betterbudgyt-dept-card-header">
+          <div class="betterbudgyt-dept-card-title">
+            <span class="betterbudgyt-dept-expand-btn">▶</span>
+            <span class="betterbudgyt-dept-name">${deptName}</span>
+          </div>
+          <div class="betterbudgyt-dept-card-totals">
+            <div class="betterbudgyt-dept-total betterbudgyt-dept-total-1">
+              <span class="betterbudgyt-dept-total-label">${comparisonData.dataset1.dataType}</span>
+              <span class="betterbudgyt-dept-total-value">${formatNumber(d1Total)}</span>
+              <span class="betterbudgyt-dept-total-count">${d1Count} items</span>
+            </div>
+            <div class="betterbudgyt-dept-total betterbudgyt-dept-total-2">
+              <span class="betterbudgyt-dept-total-label">${comparisonData.dataset2.dataType}</span>
+              <span class="betterbudgyt-dept-total-value">${formatNumber(d2Total)}</span>
+              <span class="betterbudgyt-dept-total-count">${d2Count} items</span>
+            </div>
+            <div class="betterbudgyt-dept-total betterbudgyt-dept-variance ${varianceClass}">
+              <span class="betterbudgyt-dept-total-label">Variance</span>
+              <span class="betterbudgyt-dept-total-value">${formatNumber(variance)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="betterbudgyt-dept-card-body" style="display: none;">
+          ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode - transactions hidden</div>'}
+        </div>
+      </div>
+    `;
+  });
   
-  // Add final summary section with scenario totals and difference
+  // Add grand totals card
+  const grandVariance = dataset1Total - dataset2Total;
+  const grandVarianceClass = grandVariance > 0 ? 'positive' : grandVariance < 0 ? 'negative' : 'zero';
+  
   tableHtml += `
-    <tr class="betterbudgyt-comparison-row-separator">
-      <td colspan="${3 + months.length + 1}"></td>
-    </tr>
+    <div class="betterbudgyt-grand-totals-card">
+      <div class="betterbudgyt-grand-totals-header">Grand Totals</div>
+      <div class="betterbudgyt-grand-totals-row">
+        <div class="betterbudgyt-grand-total betterbudgyt-grand-total-1">
+          <span class="betterbudgyt-grand-label">${comparisonData.dataset1.dataType}</span>
+          <span class="betterbudgyt-grand-value">${formatNumber(dataset1Total)}</span>
+        </div>
+        <div class="betterbudgyt-grand-total betterbudgyt-grand-total-2">
+          <span class="betterbudgyt-grand-label">${comparisonData.dataset2.dataType}</span>
+          <span class="betterbudgyt-grand-value">${formatNumber(dataset2Total)}</span>
+        </div>
+        <div class="betterbudgyt-grand-total betterbudgyt-grand-variance ${grandVarianceClass}">
+          <span class="betterbudgyt-grand-label">Variance</span>
+          <span class="betterbudgyt-grand-value">${formatNumber(grandVariance)}</span>
+        </div>
+      </div>
+    </div>
   `;
   
-  // Add scenario total rows
-  tableHtml += `
-    <tr class="betterbudgyt-comparison-row-scenario-total betterbudgyt-comparison-row-dataset-1">
-      <td>${comparisonData.dataset1.dataType}</td>
-      <td colspan="2">${comparisonData.dataset1.dataType} Total</td>
-      ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset1Total.monthly[month])}</td>`).join('')}
-      <td class="betterbudgyt-comparison-total">${formatNumber(dataset1Total.total)}</td>
-    </tr>
-    <tr class="betterbudgyt-comparison-row-scenario-total betterbudgyt-comparison-row-dataset-2">
-      <td>${comparisonData.dataset2.dataType}</td>
-      <td colspan="2">${comparisonData.dataset2.dataType} Total</td>
-      ${hideMonths ? '' : months.map(month => `<td class="betterbudgyt-comparison-value">${formatNumber(dataset2Total.monthly[month])}</td>`).join('')}
-      <td class="betterbudgyt-comparison-total">${formatNumber(dataset2Total.total)}</td>
-    </tr>
-    <tr class="betterbudgyt-comparison-row-difference">
-      <td>Difference</td>
-      <td colspan="2">${comparisonData.dataset1.dataType} - ${comparisonData.dataset2.dataType}</td>
-      <td colspan="${hideMonths ? 0 : months.length}"></td>
-      <td class="betterbudgyt-comparison-total">${formatNumber(dataset1Total.total - dataset2Total.total)}</td>
-    </tr>
-  `;
-  
-  // Close table
-  tableHtml += `
-      </tbody>
-    </table>
-  `;
+  tableHtml += `</div>`;
   
   return tableHtml;
+}
+
+// Generate transaction details for a department
+function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
+  let html = '<div class="betterbudgyt-transactions-grid">';
+  
+  // Dataset 1 transactions
+  if (deptData.dataset1?.transactions?.length > 0) {
+    html += `
+      <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-1">
+        <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset1.dataType}</div>
+        <table class="betterbudgyt-mini-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Vendor</th>
+              ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    deptData.dataset1.transactions.forEach(t => {
+      html += `
+        <tr>
+          <td class="betterbudgyt-mini-desc">${t.description || 'No Description'}</td>
+          <td class="betterbudgyt-mini-vendor">${t.vendor || '-'}</td>
+          ${hideMonths ? '' : months.map(m => `<td class="betterbudgyt-mini-value">${formatNumber(t.monthly?.[m] || 0)}</td>`).join('')}
+          <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
+        </tr>
+      `;
+    });
+    html += '</tbody></table></div>';
+  }
+  
+  // Dataset 2 transactions
+  if (deptData.dataset2?.transactions?.length > 0) {
+    html += `
+      <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-2">
+        <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset2.dataType}</div>
+        <table class="betterbudgyt-mini-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Vendor</th>
+              ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    deptData.dataset2.transactions.forEach(t => {
+      html += `
+        <tr>
+          <td class="betterbudgyt-mini-desc">${t.description || 'No Description'}</td>
+          <td class="betterbudgyt-mini-vendor">${t.vendor || '-'}</td>
+          ${hideMonths ? '' : months.map(m => `<td class="betterbudgyt-mini-value">${formatNumber(t.monthly?.[m] || 0)}</td>`).join('')}
+          <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
+        </tr>
+      `;
+    });
+    html += '</tbody></table></div>';
+  }
+  
+  if (!deptData.dataset1?.transactions?.length && !deptData.dataset2?.transactions?.length) {
+    html += '<div class="betterbudgyt-no-transactions">No transactions</div>';
+  }
+  
+  html += '</div>';
+  return html;
 }
 
 // Global click handler for table cells
