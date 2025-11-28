@@ -246,200 +246,589 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   100% { transform: rotate(360deg); }
 }
 
-/* Comparison Modal */
+/* ===== MODERN COMPARISON MODAL - REDESIGNED ===== */
 .betterbudgyt-comparison-modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.95) 100%);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 10000;
+  backdrop-filter: blur(4px);
 }
 
 .betterbudgyt-comparison-modal-content {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  width: 90%;
-  max-width: 1200px;
-  max-height: 90vh;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.1);
+  width: 95%;
+  max-width: 1600px;
+  height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+/* Modal Header */
 .betterbudgyt-comparison-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+  padding: 16px 24px;
+  background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
+  border-bottom: none;
 }
 
 .betterbudgyt-comparison-modal-header h2 {
   margin: 0;
-  font-size: 20px;
-  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.025em;
+}
+
+.betterbudgyt-comparison-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .betterbudgyt-comparison-modal-close {
-  background: none;
+  background: rgba(255,255,255,0.1);
   border: none;
-  font-size: 24px;
+  font-size: 20px;
   cursor: pointer;
-  color: #666;
+  color: #94a3b8;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
 }
 
 .betterbudgyt-comparison-modal-close:hover {
-  color: #333;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
 }
 
+/* Toggle Switches */
+.betterbudgyt-comparison-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.betterbudgyt-comparison-toggle-container input[type="checkbox"] {
+  display: none;
+}
+
+.betterbudgyt-comparison-toggle-slider {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 11px;
+  transition: all 0.3s;
+}
+
+.betterbudgyt-comparison-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider::before {
+  transform: translateX(18px);
+}
+
+.betterbudgyt-comparison-toggle-label {
+  font-size: 13px;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* Modal Body */
 .betterbudgyt-comparison-modal-body {
-  padding: 20px;
-  overflow-y: auto;
-  max-height: calc(90vh - 60px);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
-.betterbudgyt-comparison-info {
+/* Summary Cards */
+.betterbudgyt-comparison-summary-section {
+  padding: 16px 24px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.betterbudgyt-comparison-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.betterbudgyt-summary-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid #e2e8f0;
+}
+
+.betterbudgyt-summary-card-dataset1 {
+  border-left: 4px solid #3b82f6;
+}
+
+.betterbudgyt-summary-card-dataset2 {
+  border-left: 4px solid #22c55e;
+}
+
+.betterbudgyt-summary-card-diff {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(90deg, #fffbeb 0%, #fff 100%);
+}
+
+.betterbudgyt-summary-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.betterbudgyt-summary-card-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+
+.betterbudgyt-summary-card-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* Search & Filter Bar */
+.betterbudgyt-comparison-toolbar {
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.betterbudgyt-search-container {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+}
+
+.betterbudgyt-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.betterbudgyt-search-input {
+  width: 100%;
+  padding: 10px 12px 10px 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #334155;
+  background: #f8fafc;
+  transition: all 0.2s;
+}
+
+.betterbudgyt-search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.betterbudgyt-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.betterbudgyt-filter-chips {
+  display: flex;
+  gap: 8px;
+}
+
+.betterbudgyt-filter-chip {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+}
+
+.betterbudgyt-filter-chip:hover {
+  background: #f1f5f9;
+}
+
+.betterbudgyt-filter-chip.active {
+  background: #1e293b;
+  color: #fff;
+  border-color: #1e293b;
+}
+
+.betterbudgyt-filter-chip-dataset1.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.betterbudgyt-filter-chip-dataset2.active {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+/* Table Container */
+.betterbudgyt-comparison-table-container {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 24px;
+  background: #f1f5f9;
+}
+
+/* ===== NEW CARD-BASED DEPARTMENT COMPARISON ===== */
+.betterbudgyt-dept-comparison-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Department Card */
+.betterbudgyt-dept-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.betterbudgyt-dept-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.betterbudgyt-dept-card-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 20px;
+  align-items: center;
+  padding: 16px 20px;
+  cursor: pointer;
+  background: #fff;
+  border-bottom: 1px solid transparent;
+  transition: background 0.2s;
 }
 
-.betterbudgyt-comparison-dataset {
-  padding: 15px;
+.betterbudgyt-dept-card-header:hover {
+  background: #f8fafc;
+}
+
+.betterbudgyt-dept-card.expanded .betterbudgyt-dept-card-header {
+  border-bottom-color: #e2e8f0;
+}
+
+.betterbudgyt-dept-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.betterbudgyt-dept-expand-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
   border-radius: 6px;
-  width: 48%;
+  font-size: 10px;
+  color: #64748b;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.betterbudgyt-comparison-dataset h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 16px;
+.betterbudgyt-dept-card.expanded .betterbudgyt-dept-expand-btn {
+  transform: rotate(90deg);
+  background: #e2e8f0;
 }
 
-.betterbudgyt-comparison-dataset p {
-  margin: 5px 0;
-  font-size: 14px;
+.betterbudgyt-dept-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.betterbudgyt-comparison-dataset-1 {
-  background-color: rgba(74, 144, 226, 0.1);
-  border-left: 4px solid #4A90E2;
+.betterbudgyt-dept-card-totals {
+  display: flex;
+  gap: 24px;
+  flex-shrink: 0;
 }
 
-.betterbudgyt-comparison-dataset-2 {
-  background-color: rgba(126, 211, 33, 0.1);
-  border-left: 4px solid #7ED321;
+.betterbudgyt-dept-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 120px;
 }
 
-.betterbudgyt-comparison-table-container {
-  overflow-x: auto;
+.betterbudgyt-dept-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
 }
 
-.betterbudgyt-comparison-table {
+.betterbudgyt-dept-total-1 .betterbudgyt-dept-total-label {
+  color: #3b82f6;
+}
+
+.betterbudgyt-dept-total-2 .betterbudgyt-dept-total-label {
+  color: #22c55e;
+}
+
+.betterbudgyt-dept-variance .betterbudgyt-dept-total-label {
+  color: #64748b;
+}
+
+.betterbudgyt-dept-total-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1e293b;
+}
+
+.betterbudgyt-dept-variance.positive .betterbudgyt-dept-total-value {
+  color: #dc2626;
+}
+
+.betterbudgyt-dept-variance.negative .betterbudgyt-dept-total-value {
+  color: #16a34a;
+}
+
+.betterbudgyt-dept-variance.zero .betterbudgyt-dept-total-value {
+  color: #64748b;
+}
+
+.betterbudgyt-dept-total-count {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Department Card Body - Transactions */
+.betterbudgyt-dept-card-body {
+  padding: 0;
+  background: #f8fafc;
+}
+
+.betterbudgyt-transactions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: #e2e8f0;
+}
+
+.betterbudgyt-transactions-section {
+  background: #fff;
+  padding: 16px;
+}
+
+.betterbudgyt-transactions-section-1 {
+  border-top: 3px solid #3b82f6;
+}
+
+.betterbudgyt-transactions-section-2 {
+  border-top: 3px solid #22c55e;
+}
+
+.betterbudgyt-transactions-section-header {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.betterbudgyt-transactions-section-1 .betterbudgyt-transactions-section-header {
+  color: #3b82f6;
+}
+
+.betterbudgyt-transactions-section-2 .betterbudgyt-transactions-section-header {
+  color: #22c55e;
+}
+
+/* Mini Table for Transactions */
+.betterbudgyt-mini-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 12px;
 }
 
-.betterbudgyt-comparison-table th,
-.betterbudgyt-comparison-table td {
-  padding: 8px 12px;
+.betterbudgyt-mini-table th {
   text-align: left;
-  border-bottom: 1px solid #eee;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
-.betterbudgyt-comparison-table th {
-  background-color: #f8f9fa;
-  font-weight: bold;
-  position: sticky;
-  top: 0;
-  z-index: 1;
+.betterbudgyt-mini-table td {
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
 }
 
-.betterbudgyt-comparison-value,
-.betterbudgyt-comparison-total {
+.betterbudgyt-mini-table tr:last-child td {
+  border-bottom: none;
+}
+
+.betterbudgyt-mini-desc {
+  font-weight: 500;
+  color: #334155;
+  max-width: 200px;
+}
+
+.betterbudgyt-mini-vendor {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.betterbudgyt-mini-value {
   text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+  font-size: 11px;
 }
 
-.betterbudgyt-comparison-total {
-  font-weight: bold;
+.betterbudgyt-mini-total {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #1e293b;
 }
 
-.betterbudgyt-comparison-row-dataset-1 {
-  background-color: rgba(74, 144, 226, 0.05);
-}
-
-.betterbudgyt-comparison-row-dataset-2 {
-  background-color: rgba(126, 211, 33, 0.05);
-}
-
-.betterbudgyt-comparison-row-total {
-  font-weight: bold;
-}
-
-.betterbudgyt-comparison-row-total.betterbudgyt-comparison-row-dataset-1 {
-  background-color: rgba(74, 144, 226, 0.15);
-}
-
-.betterbudgyt-comparison-row-total.betterbudgyt-comparison-row-dataset-2 {
-  background-color: rgba(126, 211, 33, 0.15);
-}
-
-/* Department row styles */
-.betterbudgyt-comparison-row-department {
-  background-color: #f0f0f0;
-  font-weight: bold;
-  border-top: 2px solid #999;
-}
-
-.betterbudgyt-comparison-row-department.betterbudgyt-comparison-row-dataset-1 {
-  background-color: rgba(74, 144, 226, 0.2);
-}
-
-.betterbudgyt-comparison-row-department.betterbudgyt-comparison-row-dataset-2 {
-  background-color: rgba(126, 211, 33, 0.2);
-}
-
-.betterbudgyt-comparison-department-name {
-  font-size: 15px;
-  padding: 10px 12px !important;
-}
-
-/* Subtotal row styles */
-.betterbudgyt-comparison-row-subtotal {
-  font-weight: bold;
-  border-top: 1px solid #999;
-  border-bottom: 1px solid #999;
-}
-
-.betterbudgyt-comparison-row-subtotal.betterbudgyt-comparison-row-dataset-1 {
-  background-color: rgba(74, 144, 226, 0.1);
-}
-
-.betterbudgyt-comparison-row-subtotal.betterbudgyt-comparison-row-dataset-2 {
-  background-color: rgba(126, 211, 33, 0.1);
-}
-
-/* Separator row styles */
-.betterbudgyt-comparison-row-separator {
-  height: 20px;
-  background-color: #f8f9fa;
-}
-
-.betterbudgyt-comparison-row-separator td {
-  border-top: 2px solid #ddd;
-  border-bottom: 2px solid #ddd;
-}
-
-/* Transaction row styles */
-.betterbudgyt-comparison-row-transaction {
+.betterbudgyt-no-transactions {
+  padding: 24px;
+  text-align: center;
+  color: #94a3b8;
   font-size: 13px;
+}
+
+/* Grand Totals Card */
+.betterbudgyt-grand-totals-card {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-top: 8px;
+}
+
+.betterbudgyt-grand-totals-header {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.betterbudgyt-grand-totals-row {
+  display: flex;
+  gap: 32px;
+}
+
+.betterbudgyt-grand-total {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}
+
+.betterbudgyt-grand-label {
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.betterbudgyt-grand-total-1 .betterbudgyt-grand-label {
+  color: #60a5fa;
+}
+
+.betterbudgyt-grand-total-2 .betterbudgyt-grand-label {
+  color: #4ade80;
+}
+
+.betterbudgyt-grand-variance .betterbudgyt-grand-label {
+  color: #94a3b8;
+}
+
+.betterbudgyt-grand-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.betterbudgyt-grand-variance.positive .betterbudgyt-grand-value {
+  color: #fca5a5;
+}
+
+.betterbudgyt-grand-variance.negative .betterbudgyt-grand-value {
+  color: #86efac;
+}
+
+.betterbudgyt-grand-variance.zero .betterbudgyt-grand-value {
+  color: #94a3b8;
+}
+
+/* Comparison info cards - hidden in new design */
+.betterbudgyt-comparison-info,
+.betterbudgyt-comparison-summary {
+  display: none;
 }
 
 /* Sum Panel Styles */
@@ -560,177 +949,6 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
     height: 100%;
 }
 
-/* Comparison Modal Styles */
-.betterbudgyt-comparison-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.betterbudgyt-comparison-modal-content {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    width: 90%;
-    height: 85%;
-    max-width: 1400px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.betterbudgyt-comparison-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background-color: #f8f9fa;
-    cursor: move;
-}
-
-.betterbudgyt-comparison-modal-title {
-    font-size: 20px;
-    font-weight: bold;
-    color: #333;
-    margin: 0;
-}
-
-.betterbudgyt-comparison-modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #666;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-}
-
-.betterbudgyt-comparison-modal-close:hover {
-    background-color: #e0e0e0;
-    color: #333;
-}
-
-.betterbudgyt-comparison-container {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-}
-
-.betterbudgyt-dataset {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.betterbudgyt-dataset-1 {
-    background-color: #E3F2FD;
-    border-right: 2px solid #1976D2;
-}
-
-.betterbudgyt-dataset-2 {
-    background-color: #E8F5E8;
-}
-
-.betterbudgyt-dataset-header {
-    padding: 15px 20px;
-    font-weight: bold;
-    font-size: 16px;
-    color: white;
-    text-align: center;
-}
-
-.betterbudgyt-dataset-1 .betterbudgyt-dataset-header {
-    background-color: #1976D2;
-}
-
-.betterbudgyt-dataset-2 .betterbudgyt-dataset-header {
-    background-color: #388E3C;
-}
-
-.betterbudgyt-transactions-container {
-    flex: 1;
-    overflow: auto;
-    padding: 0;
-}
-
-.betterbudgyt-transactions-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-
-.betterbudgyt-transactions-table th {
-    background-color: rgba(255, 255, 255, 0.9);
-    padding: 8px 6px;
-    text-align: left;
-    font-weight: bold;
-    border-bottom: 2px solid #ddd;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-}
-
-.betterbudgyt-transactions-table td {
-    padding: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-    vertical-align: top;
-}
-
-.betterbudgyt-transactions-table tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-.betterbudgyt-transactions-table tr:nth-child(odd) {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.betterbudgyt-transaction-description {
-    font-weight: 500;
-    max-width: 200px;
-    word-wrap: break-word;
-}
-
-.betterbudgyt-transaction-vendor {
-    font-size: 12px;
-    color: #666;
-    max-width: 150px;
-    word-wrap: break-word;
-}
-
-.betterbudgyt-transaction-amount {
-    text-align: right;
-    font-family: monospace;
-    white-space: nowrap;
-}
-
-.betterbudgyt-transaction-total {
-    font-weight: bold;
-}
-
-.betterbudgyt-totals-row {
-    background-color: rgba(0, 0, 0, 0.1) !important;
-    font-weight: bold;
-}
-
-.betterbudgyt-totals-row td {
-    border-top: 2px solid #333;
-    border-bottom: 2px solid #333;
-}
-
 /* Loading Modal */
 .betterbudgyt-loading-modal {
     position: fixed;
@@ -754,7 +972,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
     min-width: 300px;
 }
 
-.betterbudgyt-loading-spinner {
+.betterbudgyt-loading-spinner-modal {
     border: 4px solid #f3f3f3;
     border-top: 4px solid #4CAF50;
     border-radius: 50%;
@@ -769,96 +987,8 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
     100% { transform: rotate(360deg); }
 }
 
-.betterbudgyt-loading-text {
+.betterbudgyt-loading-text-modal {
     font-size: 16px;
     color: #333;
     margin: 0;
-}
-
-/* Scenario total row styles */
-.betterbudgyt-comparison-row-scenario-total {
-  font-weight: bold;
-  border-top: 2px solid #333;
-  border-bottom: 1px solid #333;
-  font-size: 15px;
-}
-
-.betterbudgyt-comparison-row-scenario-total.betterbudgyt-comparison-row-dataset-1 {
-  background-color: rgba(74, 144, 226, 0.25);
-}
-
-.betterbudgyt-comparison-row-scenario-total.betterbudgyt-comparison-row-dataset-2 {
-  background-color: rgba(126, 211, 33, 0.25);
-}
-
-/* Difference row styles */
-.betterbudgyt-comparison-row-difference {
-  font-weight: bold;
-  background-color: #fff3cd;
-  border-top: 2px solid #ffc107;
-  border-bottom: 2px solid #ffc107;
-  font-size: 16px;
-}
-
-.betterbudgyt-comparison-row-difference td {
-  padding: 12px !important;
-}
-
-.betterbudgyt-comparison-row-difference .betterbudgyt-comparison-total {
-  color: #856404;
-  font-size: 18px;
-}
-
-/* Comparison modal header controls */
-.betterbudgyt-comparison-header-controls {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.betterbudgyt-comparison-toggle-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.betterbudgyt-comparison-toggle-container input[type="checkbox"] {
-  display: none;
-}
-
-.betterbudgyt-comparison-toggle-slider {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background-color: #ccc;
-  border-radius: 12px;
-  transition: background-color 0.3s;
-}
-
-.betterbudgyt-comparison-toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: white;
-  top: 2px;
-  left: 2px;
-  transition: transform 0.3s;
-}
-
-.betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider {
-  background-color: #4CAF50;
-}
-
-.betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider::before {
-  transform: translateX(20px);
-}
-
-.betterbudgyt-comparison-toggle-label {
-  font-size: 14px;
-  color: #333;
-  font-weight: 500;
 }
