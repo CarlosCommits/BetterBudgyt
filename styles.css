@@ -262,12 +262,11 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 }
 
 .betterbudgyt-comparison-modal-content {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: #fff;
+  width: 96%;
+  height: 94%;
+  max-width: 1800px;
   border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.1);
-  width: 95%;
-  max-width: 1600px;
-  height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -671,6 +670,9 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 .betterbudgyt-transactions-section {
   background: #fff;
   padding: 16px;
+  overflow: auto;
+  min-width: 0;
+  max-height: 400px;
 }
 
 .betterbudgyt-transactions-section-1 {
@@ -701,9 +703,16 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 /* Mini Table for Transactions */
 .betterbudgyt-mini-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+}
+
+.betterbudgyt-mini-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .betterbudgyt-mini-table th {
@@ -716,6 +725,11 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   padding: 8px 8px 8px 0;
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
+  background: #fff;
+}
+
+.betterbudgyt-mini-table th:last-child {
+  text-align: right;
 }
 
 .betterbudgyt-mini-table td {
@@ -731,12 +745,17 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 .betterbudgyt-mini-desc {
   font-weight: 500;
   color: #334155;
-  max-width: 200px;
+  min-width: 180px;
+  max-width: 280px;
+  word-wrap: break-word;
 }
 
 .betterbudgyt-mini-vendor {
   color: #64748b;
   font-size: 11px;
+  max-width: 100px;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .betterbudgyt-mini-value {
@@ -751,6 +770,8 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: #1e293b;
+  min-width: 80px;
+  white-space: nowrap;
 }
 
 .betterbudgyt-no-transactions {

@@ -1,9 +1,22 @@
-// Format number with commas and 2 decimal places
+// Format number with commas, no unnecessary decimals
 function formatNumber(number) {
-  return Number(number).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
+  const num = Number(number);
+  // If it's a whole number, don't show decimals
+  if (Number.isInteger(num)) {
+    return num.toLocaleString('en-US');
+  }
+  // Otherwise show up to 2 decimal places
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2
   });
+}
+
+// Strip number prefix from names (e.g., "1001 - ADMIN" -> "ADMIN")
+function stripNumberPrefix(name) {
+  if (!name) return name;
+  // Match patterns like "1001 - Name" or "526 - Vendor"
+  return name.replace(/^\d+\s*[-–]\s*/i, '').trim();
 }
 
 // Show month columns in DataInput view
@@ -3077,10 +3090,10 @@ function showComparisonModal(comparisonData) {
   const dataset2Total = comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0;
   const difference = dataset1Total - dataset2Total;
   
-  // Load the current settings
-  chrome.storage.sync.get({ comparisonHideMonths: false, comparisonClassTotalsOnly: false }, (settings) => {
-    const hideMonths = settings.comparisonHideMonths;
-    const classTotalsOnly = settings.comparisonClassTotalsOnly;
+  // Load the current settings (using v2 key to reset default to true)
+  chrome.storage.sync.get({ hideMonthsDefault: true }, (settings) => {
+    const hideMonths = settings.hideMonthsDefault;
+    const classTotalsOnly = false; // Always false now, toggle removed
     
     // Create modal content with new modern layout
     modal.innerHTML = `
@@ -3088,15 +3101,10 @@ function showComparisonModal(comparisonData) {
         <div class="betterbudgyt-comparison-modal-header">
           <h2>📊 Datasheet Comparison</h2>
           <div class="betterbudgyt-comparison-header-controls">
-            <label class="betterbudgyt-comparison-toggle-container" title="Hide month columns to show only totals">
+            <label class="betterbudgyt-comparison-toggle-container" title="Show monthly breakdown in transaction details">
               <input type="checkbox" id="hideMonthsToggle" ${hideMonths ? 'checked' : ''}>
               <span class="betterbudgyt-comparison-toggle-slider"></span>
               <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
-            </label>
-            <label class="betterbudgyt-comparison-toggle-container" title="Show only class totals (omit individual transactions)">
-              <input type="checkbox" id="classTotalsToggle" ${classTotalsOnly ? 'checked' : ''}>
-              <span class="betterbudgyt-comparison-toggle-slider"></span>
-              <span class="betterbudgyt-comparison-toggle-label">Class Totals Only</span>
             </label>
             <button class="betterbudgyt-comparison-modal-close">&times;</button>
           </div>
@@ -3189,19 +3197,26 @@ function showComparisonModal(comparisonData) {
     const toggleCheckbox = modal.querySelector('#hideMonthsToggle');
     toggleCheckbox.addEventListener('change', (event) => {
       const newHideMonths = event.target.checked;
-      chrome.storage.sync.set({ comparisonHideMonths: newHideMonths });
+      chrome.storage.sync.set({ hideMonthsDefault: newHideMonths });
+      
+      // Remember which cards are expanded before regenerating
+      const expandedDepts = [];
+      modal.querySelectorAll('.betterbudgyt-dept-card.expanded').forEach(card => {
+        expandedDepts.push(card.dataset.dept);
+      });
+      
       const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
-      const currentClassTotalsOnly = modal.querySelector('#classTotalsToggle').checked;
-      tableContainer.innerHTML = generateComparisonTable(comparisonData, newHideMonths, currentClassTotalsOnly);
-    });
-    
-    const classTotalsCheckbox = modal.querySelector('#classTotalsToggle');
-    classTotalsCheckbox.addEventListener('change', (event) => {
-      const newClassTotalsOnly = event.target.checked;
-      chrome.storage.sync.set({ comparisonClassTotalsOnly: newClassTotalsOnly });
-      const currentHideMonths = modal.querySelector('#hideMonthsToggle').checked;
-      const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
-      tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, newClassTotalsOnly);
+      tableContainer.innerHTML = generateComparisonTable(comparisonData, newHideMonths, false);
+      
+      // Restore expanded state
+      expandedDepts.forEach(deptId => {
+        const card = tableContainer.querySelector(`.betterbudgyt-dept-card[data-dept="${deptId}"]`);
+        if (card) {
+          card.classList.add('expanded');
+          const body = card.querySelector('.betterbudgyt-dept-card-body');
+          if (body) body.style.display = 'block';
+        }
+      });
     });
     
     // Add event listener for close button
@@ -3291,7 +3306,7 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
         <div class="betterbudgyt-dept-card-header">
           <div class="betterbudgyt-dept-card-title">
             <span class="betterbudgyt-dept-expand-btn">▶</span>
-            <span class="betterbudgyt-dept-name">${deptName}</span>
+            <span class="betterbudgyt-dept-name">${stripNumberPrefix(deptName)}</span>
           </div>
           <div class="betterbudgyt-dept-card-totals">
             <div class="betterbudgyt-dept-total betterbudgyt-dept-total-1">
@@ -3370,7 +3385,7 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
       html += `
         <tr>
           <td class="betterbudgyt-mini-desc">${t.description || 'No Description'}</td>
-          <td class="betterbudgyt-mini-vendor">${t.vendor || '-'}</td>
+          <td class="betterbudgyt-mini-vendor">${stripNumberPrefix(t.vendor) || '-'}</td>
           ${hideMonths ? '' : months.map(m => `<td class="betterbudgyt-mini-value">${formatNumber(t.monthly?.[m] || 0)}</td>`).join('')}
           <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
         </tr>
@@ -3399,7 +3414,7 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
       html += `
         <tr>
           <td class="betterbudgyt-mini-desc">${t.description || 'No Description'}</td>
-          <td class="betterbudgyt-mini-vendor">${t.vendor || '-'}</td>
+          <td class="betterbudgyt-mini-vendor">${stripNumberPrefix(t.vendor) || '-'}</td>
           ${hideMonths ? '' : months.map(m => `<td class="betterbudgyt-mini-value">${formatNumber(t.monthly?.[m] || 0)}</td>`).join('')}
           <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
         </tr>
