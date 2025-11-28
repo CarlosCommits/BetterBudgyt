@@ -2752,9 +2752,9 @@ function extractTransactionData(row) {
       }
     }
     
-    // If still no description, use 'Unknown'
+    // If still no description, use a more descriptive placeholder
     if (!description) {
-      description = 'Unknown';
+      description = 'No Description Entered';
     }
     
     // Get vendor - try multiple approaches
