@@ -298,6 +298,200 @@ let debugModeEnabled = false; // Debug mode for datasheet comparison
 let comparisonSelectedCells = new Map();
 let comparisonSelectionOrder = [];
 
+// Cache for store/class name mappings (storeUID -> name)
+let storeNameCache = new Map();
+
+// Fetch store/class names from the page's DOM or API
+async function fetchStoreNamesFromPage() {
+  // Return cached values if available
+  if (storeNameCache.size > 0) {
+    console.log('Using cached store names:', storeNameCache.size, 'entries');
+    return storeNameCache;
+  }
+  
+  console.log('Fetching store names from page...');
+  
+  // Try multiple selectors for store/class filter dropdowns commonly used in Budgyt
+  const dropdownSelectors = [
+    // Store filter dropdown options
+    '#storeFilter option',
+    '#classFilter option',
+    'select[name="store"] option',
+    'select[name="class"] option',
+    'select.store-filter option',
+    'select.class-filter option',
+    // Select2 dropdown results (common in Budgyt)
+    '.store-select .select2-results__option',
+    '.class-select .select2-results__option',
+    '#select2-storeFilter-results .select2-results__option',
+    // Multi-select checkboxes (another common pattern)
+    '.store-checkbox-list input[type="checkbox"]',
+    '.class-checkbox-list input[type="checkbox"]',
+    // Data attributes that might contain store info
+    '[data-store-id]',
+    '[data-class-id]',
+    // Generic dropdown in filter area
+    '.dashboardFilters select option',
+    '.filter-section select option'
+  ];
+  
+  for (const selector of dropdownSelectors) {
+    try {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        console.log(`Found ${elements.length} elements with selector: ${selector}`);
+        elements.forEach(el => {
+          let storeUID = el.value || el.getAttribute('data-store-id') || el.getAttribute('data-class-id') || el.getAttribute('data-id');
+          let storeName = el.textContent?.trim() || el.getAttribute('data-name') || el.getAttribute('title');
+          
+          // Skip empty or placeholder options
+          if (storeUID && storeName && storeUID !== '-1' && storeUID !== '' && !storeName.toLowerCase().includes('select') && !storeName.toLowerCase().includes('all')) {
+            storeNameCache.set(storeUID, storeName);
+          }
+        });
+        
+        if (storeNameCache.size > 0) {
+          console.log(`Extracted ${storeNameCache.size} store names from DOM`);
+          return storeNameCache;
+        }
+      }
+    } catch (e) {
+      console.warn(`Error querying selector ${selector}:`, e);
+    }
+  }
+  
+  // Try to find store names from DataInput table rows (level 1 and level 2 rows contain department/class info)
+  try {
+    // Look for department/class rows in the DataInput table - check both level 1 and level 2
+    const deptRows = document.querySelectorAll('tr[data-level="1"], tr[data-level="2"], tr.level1, tr.level2, tr.store-row, tr.class-row');
+    console.log(`Found ${deptRows.length} potential department rows in page DOM`);
+    
+    deptRows.forEach(row => {
+      const storeCell = row.querySelector('td#hdnStoreUID');
+      if (!storeCell) return;
+      
+      const storeUID = storeCell.textContent?.trim();
+      if (!storeUID || storeUID === '-1') return;
+      
+      // Get department name - try multiple sources
+      let storeName = '';
+      
+      // 1. Try div.label (common in level-1 rows)
+      const labelDiv = row.querySelector('div.label');
+      if (labelDiv) {
+        storeName = labelDiv.textContent?.trim();
+      }
+      
+      // 2. Try first td's title attribute (common in level-2 rows)
+      if (!storeName) {
+        const firstTd = row.querySelector('td:first-child');
+        if (firstTd) {
+          const title = firstTd.getAttribute('title');
+          // Skip month names
+          if (title && !['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Total', '%LY', '%LLY'].includes(title)) {
+            storeName = title;
+          }
+        }
+      }
+      
+      // 3. Try first td's text content
+      if (!storeName) {
+        const firstTd = row.querySelector('td:first-child');
+        if (firstTd) {
+          storeName = firstTd.textContent?.trim();
+        }
+      }
+      
+      if (storeName) {
+        // Decode HTML entities
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = storeName;
+        storeName = textarea.value.trim();
+      }
+      
+      if (storeUID && storeName) {
+        storeNameCache.set(storeUID, storeName);
+        console.log(`Cached store name: ${storeUID} -> ${storeName}`);
+      }
+    });
+    
+    if (storeNameCache.size > 0) {
+      console.log(`Extracted ${storeNameCache.size} store names from DataInput table rows`);
+      return storeNameCache;
+    }
+  } catch (e) {
+    console.warn('Error extracting store names from table rows:', e);
+  }
+  
+  // Try to fetch store list from Budgyt API
+  try {
+    console.log('Attempting to fetch store list from API...');
+    const response = await fetch('/Budget/GetStoreList', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({})
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        data.forEach(store => {
+          const storeUID = String(store.StoreUID || store.storeUID || store.Id || store.id);
+          const storeName = store.StoreName || store.storeName || store.Name || store.name;
+          if (storeUID && storeName) {
+            storeNameCache.set(storeUID, storeName);
+          }
+        });
+        console.log(`Fetched ${storeNameCache.size} store names from API`);
+        return storeNameCache;
+      }
+    }
+  } catch (e) {
+    console.warn('GetStoreList API not available:', e);
+  }
+  
+  // Try GetClassList as alternative
+  try {
+    const response = await fetch('/Budget/GetClassList', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({})
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        data.forEach(cls => {
+          const classUID = String(cls.ClassUID || cls.classUID || cls.StoreUID || cls.Id || cls.id);
+          const className = cls.ClassName || cls.className || cls.StoreName || cls.Name || cls.name;
+          if (classUID && className) {
+            storeNameCache.set(classUID, className);
+          }
+        });
+        console.log(`Fetched ${storeNameCache.size} class names from API`);
+        return storeNameCache;
+      }
+    }
+  } catch (e) {
+    console.warn('GetClassList API not available:', e);
+  }
+  
+  console.log('Could not find store/class names from page or API');
+  return storeNameCache;
+}
+
+// Clear store name cache (useful when navigating to different budgets)
+function clearStoreNameCache() {
+  storeNameCache.clear();
+  console.log('Store name cache cleared');
+}
+
 // Log HTML in chunks to avoid console truncation
 function logHtmlInChunks(html, prefix = 'HTML Chunk') {
   if (!debugModeEnabled) return;
@@ -1800,6 +1994,9 @@ async function fetchStoreUIDForDepartment(parameters, accountName, dataHref) {
   try {
     console.log(`Fetching StoreUIDs for ${accountName} with groupedcategory: ${parameters.groupedcategory}`);
     
+    // Pre-populate store name cache from page DOM or API
+    await fetchStoreNamesFromPage();
+    
     // Create Level 0 parameters to get department/StoreUID mapping
     const level0Params = {
       level: '0',
@@ -1855,7 +2052,58 @@ async function fetchStoreUIDForDepartment(parameters, accountName, dataHref) {
     console.log('Level 0 response (first 200 chars):', responseText.substring(0, 200) + '...');
     
     // Extract StoreUIDs from the response
-    const departmentStoreUIDs = extractStoreUIDFromLevel0(responseText, accountName);
+    const level0StoreUIDs = extractStoreUIDFromLevel0(responseText, accountName);
+    
+    // Additional Level 1 request to capture names (rows with data-level="1")
+    const level1Params = {
+      ...level0Params,
+      level: '1'
+    };
+    
+    let level1StoreUIDs = [];
+    try {
+      const level1Response = await fetch('/Budget/GetRowData', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(level1Params)
+      });
+      const level1Text = await level1Response.text();
+      console.log('Level 1 response (first 200 chars):', level1Text.substring(0, 200) + '...');
+      level1StoreUIDs = extractStoreUIDFromLevel0(level1Text, `${accountName} (Level 1)`);
+    } catch (err) {
+      console.warn('Level 1 request for store names failed:', err);
+    }
+    
+    // Merge Level0 and Level1 results, prefer names from Level1
+    const merged = new Map();
+    [...level0StoreUIDs, ...level1StoreUIDs].forEach(entry => {
+      if (!merged.has(entry.storeUID)) {
+        merged.set(entry.storeUID, entry);
+      } else {
+        const existing = merged.get(entry.storeUID);
+        if ((!existing.departmentName || existing.departmentName.startsWith('Class ')) && entry.departmentName) {
+          merged.set(entry.storeUID, { ...existing, departmentName: entry.departmentName });
+        }
+      }
+    });
+    
+    // If no store UIDs were found in the HTML, extract them from the Stores parameter
+    if (merged.size === 0 && level0Params.Stores) {
+      console.log('No store UIDs found in HTML response, extracting from Stores parameter...');
+      const storeIds = level0Params.Stores.split(',').filter(id => id && id !== '-1');
+      storeIds.forEach(storeUID => {
+        const cachedName = storeNameCache.get(storeUID);
+        merged.set(storeUID, {
+          storeUID,
+          departmentName: cachedName || `Class ${storeUID}`,
+          deptUID: '-1',
+          source: cachedName ? 'Stores param + cache' : 'Stores param'
+        });
+      });
+      console.log(`Extracted ${merged.size} store UIDs from Stores parameter`);
+    }
+    
+    const departmentStoreUIDs = Array.from(merged.values());
     
     if (departmentStoreUIDs.length === 1 && departmentStoreUIDs[0].storeUID === '579' && departmentStoreUIDs[0].source === 'default fallback') {
       console.warn(`⚠️ Using default StoreUID '579' for ${accountName}. This may cause issues if this is not the correct StoreUID.`);
@@ -1887,7 +2135,10 @@ function extractStoreUIDFromLevel0(htmlResponse, accountName) {
   }
   
   const parser = new DOMParser();
-  const doc = parser.parseFromString(htmlResponse, 'text/html');
+  // Wrap the HTML in a table element since the response contains raw <tr> elements
+  // Without a table wrapper, DOMParser discards orphan <tr> elements
+  const wrappedHtml = `<table>${htmlResponse}</table>`;
+  const doc = parser.parseFromString(wrappedHtml, 'text/html');
   const uniqueStoreUIDs = new Map();
   
   // Helper to normalize a department/class name
@@ -1895,38 +2146,108 @@ function extractStoreUIDFromLevel0(htmlResponse, accountName) {
   
   // Walk rows that carry store info
   const candidateRows = Array.from(doc.querySelectorAll('tr'));
+  console.log(`Found ${candidateRows.length} total TR rows in the Level 0 response`);
+  
+  let rowsWithStoreCell = 0;
+  let rowsWithValidUID = 0;
+  
   candidateRows.forEach((row, index) => {
     const storeCell = row.querySelector('td#hdnStoreUID');
     if (!storeCell) return;
+    rowsWithStoreCell++;
     
     const storeUID = storeCell.textContent.trim();
     if (!storeUID || storeUID === '-1' || uniqueStoreUIDs.has(storeUID)) return;
+    rowsWithValidUID++;
     
-    // Department/Class label: prefer title attribute, else visible text of first td
+    console.log(`Row ${index}: Found valid storeUID=${storeUID}, data-level=${row.getAttribute('data-level')}`);
+    
+    // Department/Class label: prefer div.label, then first td's title attribute
     let departmentName = '';
-    const titleCell = row.querySelector('td[title]') || row.querySelector('td.title');
-    if (titleCell) {
-      departmentName = titleCell.getAttribute('title') || titleCell.textContent;
-    } else {
-      const firstTd = row.querySelector('td');
-      if (firstTd) departmentName = firstTd.textContent;
+    
+    // First try div.label which contains the department name
+    const labelDiv = row.querySelector('div.label');
+    if (labelDiv) {
+      departmentName = labelDiv.textContent;
     }
     
-    departmentName = normalizeName(departmentName);
-    if (!departmentName) departmentName = `Class ${storeUID}`;
+    // If not found, try the first td's title attribute (not the month cells)
+    if (!departmentName) {
+      const firstTd = row.querySelector('td:first-child');
+      if (firstTd) {
+        departmentName = firstTd.getAttribute('title') || firstTd.textContent;
+      }
+    }
+    
+    // Last resort: any td with a title that looks like a department name (contains numbers or letters, not month names)
+    if (!departmentName) {
+      const allTitleCells = row.querySelectorAll('td[title]');
+      for (const cell of allTitleCells) {
+        const title = cell.getAttribute('title');
+        // Skip month names and common non-department titles
+        if (title && !['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Total', '%LY', '%LLY'].includes(title)) {
+          departmentName = title;
+          break;
+        }
+      }
+    }
+    
+    if (departmentName) {
+      const textarea = document.createElement('textarea'); // quick HTML entity decode
+      textarea.innerHTML = departmentName;
+      departmentName = normalizeName(textarea.value || textarea.innerHTML || departmentName);
+    }
+    // If no name found, try the store name cache, else fall back to "Class {uid}"
+    if (!departmentName) {
+      departmentName = storeNameCache.get(storeUID) || `Class ${storeUID}`;
+    }
     
     // DeptUID if present
     const deptCandidate = row.querySelector('[data-deptid]') || row.querySelector('[data-id]');
     const deptUID = deptCandidate ? (deptCandidate.getAttribute('data-deptid') || deptCandidate.getAttribute('data-id')) : null;
     
+    // Extract monthly values from the Level 0 row (department totals)
+    const monthly = {};
+    const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    months.forEach((month, i) => {
+      const periodNum = i + 1;
+      // Try multiple selectors for month cells
+      const monthCell = row.querySelector(`td[data-period="P${periodNum}"]`) || 
+                        row.querySelector(`td[data-Period="P${periodNum}"]`) ||
+                        row.querySelector(`td[title="${month}"].data`);
+      if (monthCell) {
+        const spanVal = monthCell.querySelector('span.showCol, span');
+        const valText = spanVal ? spanVal.textContent.trim() : monthCell.textContent.trim();
+        monthly[month] = parseFloat(valText.replace(/[^0-9.-]+/g, '')) || 0;
+      } else {
+        monthly[month] = 0;
+      }
+    });
+    
+    // Extract total
+    const totalCell = row.querySelector('td[title="Total"].data, td.DATValueTotalF');
+    let total = 0;
+    if (totalCell) {
+      const spanVal = totalCell.querySelector('span.showCol, span');
+      const valText = spanVal ? spanVal.textContent.trim() : totalCell.textContent.trim();
+      total = parseFloat(valText.replace(/[^0-9.-]+/g, '')) || 0;
+    }
+    
+    console.log(`Row ${index}: Extracted departmentName="${departmentName}" for storeUID=${storeUID}, total=${total}`);
+    
     uniqueStoreUIDs.set(storeUID, {
       storeUID,
       departmentName,
       deptUID: deptUID || '-1',
+      monthly,
+      total,
       source: 'hdnStoreUID row',
       rowIndex: index
     });
   });
+  
+  console.log(`Summary: ${candidateRows.length} total rows, ${rowsWithStoreCell} with hdnStoreUID cell, ${rowsWithValidUID} with valid UID`);
+  console.log(`Extracted ${uniqueStoreUIDs.size} unique store UIDs from DOM parsing`);
   
   // Last resort: regex fallback if nothing parsed
   if (uniqueStoreUIDs.size === 0) {
@@ -1935,11 +2256,13 @@ function extractStoreUIDFromLevel0(htmlResponse, accountName) {
     while ((match = regex.exec(htmlResponse)) !== null) {
       const uid = match[1];
       if (!uniqueStoreUIDs.has(uid)) {
+        // Try to get name from cache, else fall back to "Class {uid}"
+        const cachedName = storeNameCache.get(uid);
         uniqueStoreUIDs.set(uid, {
           storeUID: uid,
-          departmentName: `Class ${uid}`,
+          departmentName: cachedName || `Class ${uid}`,
           deptUID: '-1',
-          source: 'regex fallback'
+          source: cachedName ? 'regex + cache' : 'regex fallback'
         });
       }
     }
@@ -2008,108 +2331,88 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
       failedDepartments: []
     };
     
-    // STEP 4 & 5: Fetch data for each department
-    console.log(`STEP 4: Fetching data for ${departmentStoreUIDs.length} departments`);
+    // STEP 4 & 5: Process data for each department by fetching Level 2 transaction data
+    console.log(`STEP 4: Fetching Level 2 transaction data for ${departmentStoreUIDs.length} departments`);
     
-    // Process each department sequentially with single retry on failure
+    const baseUrl = window.location.origin;
+    const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
+    
+    const headers = {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Accept': 'text/html, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (refererUrl) headers['Referer'] = refererUrl;
+    
+    // Fetch Level 2 transaction data for each department
     for (const deptInfo of departmentStoreUIDs) {
-      let attempts = 0;
-      let success = false;
-      
-      while (!success && attempts < 2) {
-        try {
-          attempts++;
-          console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}) attempt ${attempts}`);
-          
-          // Clone parameters for this department
-          const deptParameters = JSON.parse(JSON.stringify(parameters));
-          
-          // Update StoreUID and DeptUID for this department
-          deptParameters.StoreUID = deptInfo.storeUID;
-          if (deptInfo.deptUID && deptInfo.deptUID !== '-1') {
-            deptParameters.DeptUID = deptInfo.deptUID;
-          }
-          
-          // Update Stores CSV to only those discovered
-          deptParameters.Stores = storeCsv;
-          
-          console.log(`Department parameters:`, JSON.stringify(deptParameters, null, 2));
-          
-          // Construct the full Referer URL
-          const baseUrl = window.location.origin;
-          const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
-          
-          // Headers for the request
-          const headers = {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Accept': 'text/html, */*; q=0.01',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-BetterBudgyt-Request-ID': `${accountName}-${dataType}-${deptInfo.departmentName}-${Date.now()}`
-          };
-          
-          // Add Referer header if we have a data-href
-          if (refererUrl) {
-            headers['Referer'] = refererUrl;
-          }
-          
-          console.log(`STEP 5: Making Level 2 GetRowData request for department ${deptInfo.departmentName}`);
-          
-          // Make POST request to GetRowData endpoint with JSON format
-          const response = await fetch('/Budget/GetRowData', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(deptParameters)
-          });
-          
-          console.log(`Response status for ${deptInfo.departmentName}:`, response.status);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-          
-          // Get response text
+      try {
+        console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID})`);
+        
+        // Clone parameters for this department's Level 2 request
+        // IMPORTANT: Keep original DeptUID from parameters, only change StoreUID
+        const deptParameters = {
+          level: '2',
+          StoreUID: deptInfo.storeUID,
+          DeptUID: parameters.DeptUID || '3',  // Keep original DeptUID, don't use storeUID
+          CategoryUID: parameters.CategoryUID || '-1',
+          groupedcategory: parameters.groupedcategory,
+          CompNonCompfilter: parameters.CompNonCompfilter || '',
+          Stores: storeCsv,
+          viewLevel: 'CATEGORY',
+          vendorIdCSV: parameters.vendoridCSV || parameters.vendorIdCSV || '-2',
+          showInGlobal: true,
+          bsMode: parameters.bsMode || '',
+          categoryType: parameters.categoryType || 'PL',
+          localoffset: parameters.localoffset || new Date().getTimezoneOffset().toString()
+        };
+        
+        console.log(`Level 2 request parameters for ${deptInfo.departmentName}:`, JSON.stringify(deptParameters, null, 2));
+        
+        const response = await fetch('/Budget/GetRowData', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(deptParameters)
+        });
+        
+        if (response.ok) {
           const responseText = await response.text();
+          console.log(`Level 2 response for ${deptInfo.departmentName} (first 300 chars):`, responseText.substring(0, 300));
           
-          // Log raw response for debugging
-          if (debugModeEnabled) {
-            console.log(`Raw response for ${deptInfo.departmentName} (first 500 chars):`, responseText.substring(0, 500) + '...');
-            logHtmlInChunks(responseText, `HTML Response for ${deptInfo.departmentName}`);
-          }
-          
-          // Parse HTML response
           const deptData = await parseDatasheetHtml(responseText, deptInfo.departmentName);
-          
-          // Add department metadata
           deptData.departmentName = deptInfo.departmentName;
           deptData.storeUID = deptInfo.storeUID;
           deptData.deptUID = deptInfo.deptUID;
           
-          // Add to departments array
-          result.departments.push(deptData);
+          // Check if we got any transactions with data
+          const hasTransactions = (deptData.transactions || []).length > 0;
+          const deptTotalVal = deptData.totals.total || 0;
           
-          // Add transactions to combined list with department info
-          deptData.transactions.forEach(transaction => {
-            result.transactions.push({
-              ...transaction,
-              departmentName: deptInfo.departmentName,
-              storeUID: deptInfo.storeUID
-            });
-          });
+          console.log(`${deptInfo.departmentName}: Found ${deptData.transactions?.length || 0} transactions, total=${deptTotalVal}`);
           
-          console.log(`Successfully processed department ${deptInfo.departmentName} with ${deptData.transactions.length} transactions`);
-          success = true;
-        } catch (error) {
-          console.error(`Error processing department ${deptInfo.departmentName} attempt ${attempts}:`, error);
-          if (attempts >= 2) {
-            result.failedDepartments.push({
-              departmentName: deptInfo.departmentName,
-              storeUID: deptInfo.storeUID,
-              error: error.message
+          if (hasTransactions || Math.abs(deptTotalVal) > 0.0001) {
+            result.departments.push(deptData);
+            deptData.transactions.forEach(t => {
+              result.transactions.push({ 
+                ...t, 
+                departmentName: deptInfo.departmentName, 
+                storeUID: deptInfo.storeUID 
+              });
             });
+            console.log(`Successfully processed department ${deptInfo.departmentName}`);
           } else {
-            console.warn(`Retrying department ${deptInfo.departmentName}...`);
+            console.log(`Skipping department ${deptInfo.departmentName} (no transactions or zero totals)`);
           }
+        } else {
+          console.error(`Level 2 request failed for ${deptInfo.departmentName}: ${response.status}`);
         }
+      } catch (error) {
+        console.error(`Error processing department ${deptInfo.departmentName}:`, error);
+        result.failedDepartments.push({
+          departmentName: deptInfo.departmentName,
+          storeUID: deptInfo.storeUID,
+          error: error.message
+        });
       }
     }
     
@@ -2399,45 +2702,67 @@ function extractTransactionData(row) {
     }
     
     // Get description - try multiple approaches
-    let description = 'Unknown';
+    let description = '';
     
-    // Approach 1: Try to find the description in a span.desc-field
-    const descSpan = row.querySelector('span.desc-field');
+    // Approach 1: Try to find the description in a span.desc-field (data-value attribute is most reliable)
+    const descSpan = row.querySelector('span.desc-field, span.approved-row-desc');
     if (descSpan) {
-      description = descSpan.textContent.trim();
+      // Prefer data-value attribute as it's more reliable
+      description = descSpan.getAttribute('data-value') || descSpan.textContent.trim();
       console.log('Found description in span.desc-field:', description);
-    } 
-    // Approach 2: Try to find the description in a td with isDescription attribute
-    else {
+    }
+    
+    // Approach 2: Try input.isDescription
+    if (!description) {
+      const descInput = row.querySelector('input.isDescription');
+      if (descInput && descInput.value) {
+        description = descInput.value.trim();
+        console.log('Found description in input.isDescription:', description);
+      }
+    }
+    
+    // Approach 3: Try to find the description in a td with isDescription attribute
+    if (!description) {
       const descCell = row.querySelector('td[isDescription="true"]');
       if (descCell) {
         description = descCell.textContent.trim();
         console.log('Found description in td[isDescription="true"]:', description);
       }
-      // Approach 3: Try to find the description in the first cell
-      else {
-        const firstCell = row.querySelector('td:first-child');
-        if (firstCell) {
-          description = firstCell.textContent.trim();
-          console.log('Found description in first cell:', description);
-        }
+    }
+    
+    // Approach 4: Try the first td's title attribute
+    if (!description) {
+      const firstCell = row.querySelector('td:first-child');
+      if (firstCell) {
+        description = firstCell.getAttribute('title') || firstCell.textContent.trim();
+        console.log('Found description from first cell:', description);
       }
+    }
+    
+    // If still no description, use 'Unknown'
+    if (!description) {
+      description = 'Unknown';
     }
     
     // Get vendor - try multiple approaches
     let vendor = '';
     
-    // Approach 1: Look for span.vendor
+    // Approach 1: Look for span.vendor (title attribute is most reliable)
     const vendorSpan = row.querySelector('span.vendor');
     if (vendorSpan) {
-      vendor = vendorSpan.textContent.trim();
+      vendor = vendorSpan.getAttribute('title') || vendorSpan.textContent.trim();
       console.log('Found vendor in span.vendor:', vendor);
     } 
-    // Approach 2: Look for td.vendor
-    else {
+    // Approach 2: Look for td.vendor or td.vendorLst
+    if (!vendor) {
       const vendorCell = row.querySelector('td.vendor, td.vendorLst');
       if (vendorCell) {
-        vendor = vendorCell.textContent.trim();
+        const vendorSpanInCell = vendorCell.querySelector('span.vendor');
+        if (vendorSpanInCell) {
+          vendor = vendorSpanInCell.getAttribute('title') || vendorSpanInCell.textContent.trim();
+        } else {
+          vendor = vendorCell.textContent.trim();
+        }
         console.log('Found vendor in td.vendor:', vendor);
       }
     }
