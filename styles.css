@@ -560,7 +560,10 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 }
 
 .betterbudgyt-dept-card.expanded {
-  border-color: #3b82f6;
+  border-color: #e2e8f0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transform: scale(1.01);
+  z-index: 10;
 }
 
 .betterbudgyt-dept-card-header {
