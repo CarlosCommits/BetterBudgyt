@@ -3100,14 +3100,7 @@ function showComparisonModal(comparisonData) {
       <div class="betterbudgyt-comparison-modal-content">
         <div class="betterbudgyt-comparison-modal-header">
           <h2>📊 Datasheet Comparison</h2>
-          <div class="betterbudgyt-comparison-header-controls">
-            <label class="betterbudgyt-comparison-toggle-container" title="Show monthly breakdown in transaction details">
-              <input type="checkbox" id="hideMonthsToggle" ${hideMonths ? 'checked' : ''}>
-              <span class="betterbudgyt-comparison-toggle-slider"></span>
-              <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
-            </label>
-            <button class="betterbudgyt-comparison-modal-close">&times;</button>
-          </div>
+          <button class="betterbudgyt-comparison-modal-close" title="Close">&times;</button>
         </div>
         <div class="betterbudgyt-comparison-modal-body">
           <!-- Summary Cards -->
@@ -3145,6 +3138,12 @@ function showComparisonModal(comparisonData) {
               <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset1" data-filter="dataset1">${comparisonData.dataset1.dataType}</button>
               <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset2" data-filter="dataset2">${comparisonData.dataset2.dataType}</button>
             </div>
+            <div class="betterbudgyt-toolbar-divider"></div>
+            <label class="betterbudgyt-comparison-toggle-container" title="Hide monthly breakdown columns">
+              <input type="checkbox" id="hideMonthsToggle" ${hideMonths ? 'checked' : ''}>
+              <span class="betterbudgyt-comparison-toggle-slider"></span>
+              <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
+            </label>
           </div>
           
           <!-- Table Container -->
