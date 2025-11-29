@@ -749,26 +749,34 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   width: 60px;
 }
 
-/* Single column mode - wider columns when more space available */
+/* Single column mode - all columns get explicit widths */
 .single-column-mode .betterbudgyt-mini-table {
-  table-layout: auto;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.single-column-mode .betterbudgyt-mini-table th,
+.single-column-mode .betterbudgyt-mini-table td {
+  width: 50px;
+  text-align: center;
 }
 
 .single-column-mode .betterbudgyt-mini-table th:first-child,
 .single-column-mode .betterbudgyt-mini-table td:first-child {
-  width: auto;
-  min-width: 200px;
+  width: 180px;
+  text-align: left;
 }
 
 .single-column-mode .betterbudgyt-mini-table th:nth-child(2),
 .single-column-mode .betterbudgyt-mini-table td:nth-child(2) {
-  width: auto;
-  min-width: 120px;
+  width: 90px;
+  text-align: left;
 }
 
 .single-column-mode .betterbudgyt-mini-table th:last-child,
 .single-column-mode .betterbudgyt-mini-table td:last-child {
-  width: 70px;
+  width: 55px;
+  text-align: right;
 }
 
 .betterbudgyt-mini-table thead {
