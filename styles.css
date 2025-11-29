@@ -707,10 +707,26 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 /* Mini Table for Transactions */
 .betterbudgyt-mini-table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
+}
+
+/* Fixed column widths - same for both tables */
+.betterbudgyt-mini-table th:first-child,
+.betterbudgyt-mini-table td:first-child {
+  width: 120px;
+}
+
+.betterbudgyt-mini-table th:nth-child(2),
+.betterbudgyt-mini-table td:nth-child(2) {
+  width: 80px;
+}
+
+.betterbudgyt-mini-table th:last-child,
+.betterbudgyt-mini-table td:last-child {
+  width: 60px;
 }
 
 .betterbudgyt-mini-table thead {
@@ -761,18 +777,14 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 .betterbudgyt-mini-desc {
   font-weight: 500;
   color: #334155;
-  min-width: 120px;
-  max-width: 180px;
-  word-wrap: break-word;
   font-size: 12px;
+  word-wrap: break-word;
 }
 
 .betterbudgyt-mini-vendor {
   color: #64748b;
   font-size: 11px;
-  max-width: 100px;
   word-wrap: break-word;
-  word-break: break-word;
 }
 
 .betterbudgyt-mini-value {
