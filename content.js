@@ -1528,11 +1528,30 @@ function performComparison() {
 
 // ===== ROW HOVER COMPARE BUTTON FEATURE =====
 
+// Check if Scenario 3 is set to "Do Not Show"
+function isScenario3Hidden() {
+  // Check the Scn 3 dropdown (budgetToCompareD3)
+  const scn3Select = document.querySelector('select[name="budgetToCompareD3"]');
+  if (scn3Select) {
+    // Value of -2 means "Do Not Show"
+    if (scn3Select.value === '-2') return true;
+  }
+  
+  // Also check the Select2 display text as backup
+  const scn3Display = document.querySelector('.comparisionBudget2Year .select2-chosen');
+  if (scn3Display && scn3Display.textContent.trim() === 'Do Not Show') {
+    return true;
+  }
+  
+  return false;
+}
+
 // Get available comparison columns from a row
 function getAvailableColumns(row) {
   const columns = [];
+  const scn3Hidden = isScenario3Hidden();
   
-  // Check for Actuals column
+  // Check for Actuals column (Scn 1)
   const actualsCell = row.querySelector('td.actual-budgetVal');
   if (actualsCell && hasDatasheetLink(actualsCell)) {
     columns.push({
@@ -1542,7 +1561,7 @@ function getAvailableColumns(row) {
     });
   }
   
-  // Check for Budget column (compare-budgetVal)
+  // Check for Budget column (Scn 2 - compare-budgetVal)
   const budgetCell = row.querySelector('td.compare-budgetVal');
   if (budgetCell && hasDatasheetLink(budgetCell)) {
     columns.push({
@@ -1552,14 +1571,16 @@ function getAvailableColumns(row) {
     });
   }
   
-  // Check for Previous Year / Third column (actual-budgetLYVal)
-  const lyCell = row.querySelector('td.actual-budgetLYVal');
-  if (lyCell && hasDatasheetLink(lyCell)) {
-    columns.push({
-      type: 'actual-budgetLYVal',
-      name: lyCell.getAttribute('title') || 'Previous Year',
-      cell: lyCell
-    });
+  // Check for Third column (Scn 3 - actual-budgetLYVal) - only if not hidden
+  if (!scn3Hidden) {
+    const lyCell = row.querySelector('td.actual-budgetLYVal');
+    if (lyCell && hasDatasheetLink(lyCell)) {
+      columns.push({
+        type: 'actual-budgetLYVal',
+        name: lyCell.getAttribute('title') || 'Previous Year',
+        cell: lyCell
+      });
+    }
   }
   
   return columns;
@@ -1762,7 +1783,20 @@ function injectRowCompareButton(row) {
   compareBtn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    showColumnSelectorModal(row);
+    
+    // Check how many columns are available
+    const columns = getAvailableColumns(row);
+    
+    if (columns.length === 2) {
+      // Only 2 columns available - skip modal and compare directly
+      performRowComparison(row, columns[0], columns[1]);
+    } else if (columns.length > 2) {
+      // More than 2 columns - show selector modal
+      showColumnSelectorModal(row);
+    } else {
+      // Less than 2 columns - shouldn't happen since button wouldn't be injected
+      alert('This row needs at least 2 comparable columns.');
+    }
   });
   
   // Insert button
