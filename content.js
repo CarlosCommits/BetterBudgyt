@@ -3171,13 +3171,37 @@ function showComparisonModal(comparisonData) {
       });
     });
     
-    // Filter chips are less relevant in card view, but keep for "only show depts with data"
+    // Filter chips control layout: All = 2 columns, Actuals/Budget = single column full width
     const filterChips = modal.querySelectorAll('.betterbudgyt-filter-chip');
     filterChips.forEach(chip => {
       chip.addEventListener('click', () => {
         filterChips.forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        // Filter chips could be repurposed for other filters in the future
+        
+        const filter = chip.dataset.filter;
+        const grids = modal.querySelectorAll('.betterbudgyt-transactions-grid');
+        
+        grids.forEach(grid => {
+          const section1 = grid.querySelector('.betterbudgyt-transactions-section-1');
+          const section2 = grid.querySelector('.betterbudgyt-transactions-section-2');
+          
+          if (filter === 'all') {
+            // Two column layout
+            grid.style.gridTemplateColumns = '1fr 1fr';
+            if (section1) section1.style.display = '';
+            if (section2) section2.style.display = '';
+          } else if (filter === 'dataset1') {
+            // Single column - Actuals only
+            grid.style.gridTemplateColumns = '1fr';
+            if (section1) section1.style.display = '';
+            if (section2) section2.style.display = 'none';
+          } else if (filter === 'dataset2') {
+            // Single column - Budget only
+            grid.style.gridTemplateColumns = '1fr';
+            if (section1) section1.style.display = 'none';
+            if (section2) section2.style.display = '';
+          }
+        });
       });
     });
     
