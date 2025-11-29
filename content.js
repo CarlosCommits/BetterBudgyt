@@ -3672,10 +3672,14 @@ function showComparisonModal(comparisonData) {
         minimizedTab = document.createElement('div');
         minimizedTab.className = 'betterbudgyt-minimized-tab';
         minimizedTab.dataset.modalId = modalId;
+        // Use just the account name for tab title (shorter)
+        const tabTitle = comparisonData.accountName 
+          ? stripNumberPrefix(comparisonData.accountName) 
+          : 'Comparison';
         minimizedTab.innerHTML = `
           <div class="betterbudgyt-minimized-tab-content">
             <span class="betterbudgyt-minimized-tab-icon">📊</span>
-            <span class="betterbudgyt-minimized-tab-title">${headerTitle.replace('📊 ', '')}</span>
+            <span class="betterbudgyt-minimized-tab-title">${tabTitle}</span>
             <button class="betterbudgyt-minimized-tab-close" title="Close">&times;</button>
           </div>
         `;
