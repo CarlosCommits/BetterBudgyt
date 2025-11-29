@@ -669,7 +669,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 .betterbudgyt-transactions-section {
   background: #fff;
-  padding: 16px;
+  padding: 0 16px 16px 16px;
   overflow: auto;
   min-width: 0;
   max-height: 400px;
@@ -688,9 +688,13 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  padding: 12px 0 8px 0;
   border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+  margin: 0 0 0 0;
 }
 
 .betterbudgyt-transactions-section-1 .betterbudgyt-transactions-section-header {
@@ -711,7 +715,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 .betterbudgyt-mini-table thead {
   position: sticky;
-  top: 0;
+  top: 33px; /* Below the section header */
   z-index: 1;
 }
 
@@ -726,6 +730,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
   background: #fff;
+  box-shadow: 0 1px 0 #e2e8f0; /* Adds visual separation */
 }
 
 .betterbudgyt-mini-table th:last-child {
