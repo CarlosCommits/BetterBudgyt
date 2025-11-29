@@ -4148,6 +4148,9 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
     return (dept.transactions || []).reduce((sum, t) => sum + (t.total || 0), 0);
   };
   
+  // Check if we have only 1 department - if so, skip the card header
+  const isSingleDepartment = departmentMap.size === 1;
+  
   // Generate simplified table HTML - focused on comparison
   let tableHtml = `
     <div class="betterbudgyt-dept-comparison-list">
@@ -4163,42 +4166,54 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
     const d1Count = deptData.dataset1?.transactions?.length || 0;
     const d2Count = deptData.dataset2?.transactions?.length || 0;
     
-    tableHtml += `
-      <div class="betterbudgyt-dept-card" data-dept="${deptData.storeUID}">
-        <div class="betterbudgyt-dept-card-header">
-          <div class="betterbudgyt-dept-card-title">
-            <span class="betterbudgyt-dept-expand-btn">▶</span>
-            <span class="betterbudgyt-dept-name">${stripNumberPrefix(deptName)}</span>
-            <button class="betterbudgyt-dept-popout-btn" title="Open in new tab" data-dept="${deptData.storeUID}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
-              </svg>
-            </button>
-          </div>
-          <div class="betterbudgyt-dept-card-totals">
-            <div class="betterbudgyt-dept-total betterbudgyt-dept-total-1">
-              <span class="betterbudgyt-dept-total-label">${comparisonData.dataset1.dataType}</span>
-              <span class="betterbudgyt-dept-total-value">${formatNumber(d1Total)}</span>
-              <span class="betterbudgyt-dept-total-count">${d1Count} items</span>
-            </div>
-            <div class="betterbudgyt-dept-total betterbudgyt-dept-total-2">
-              <span class="betterbudgyt-dept-total-label">${comparisonData.dataset2.dataType}</span>
-              <span class="betterbudgyt-dept-total-value">${formatNumber(d2Total)}</span>
-              <span class="betterbudgyt-dept-total-count">${d2Count} items</span>
-            </div>
-            <div class="betterbudgyt-dept-total betterbudgyt-dept-variance ${varianceClass}">
-              <span class="betterbudgyt-dept-total-label">Variance</span>
-              <span class="betterbudgyt-dept-total-value">${formatNumber(variance)}</span>
-            </div>
+    if (isSingleDepartment) {
+      // Single department - skip the card header, just show transactions directly
+      tableHtml += `
+        <div class="betterbudgyt-dept-card betterbudgyt-single-dept" data-dept="${deptData.storeUID}">
+          <div class="betterbudgyt-dept-card-body" style="display: block;">
+            ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode - transactions hidden</div>'}
           </div>
         </div>
-        <div class="betterbudgyt-dept-card-body" style="display: none;">
-          ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode - transactions hidden</div>'}
+      `;
+    } else {
+      // Multiple departments - show full card with header
+      tableHtml += `
+        <div class="betterbudgyt-dept-card" data-dept="${deptData.storeUID}">
+          <div class="betterbudgyt-dept-card-header">
+            <div class="betterbudgyt-dept-card-title">
+              <span class="betterbudgyt-dept-expand-btn">▶</span>
+              <span class="betterbudgyt-dept-name">${stripNumberPrefix(deptName)}</span>
+              <button class="betterbudgyt-dept-popout-btn" title="Open in new tab" data-dept="${deptData.storeUID}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </button>
+            </div>
+            <div class="betterbudgyt-dept-card-totals">
+              <div class="betterbudgyt-dept-total betterbudgyt-dept-total-1">
+                <span class="betterbudgyt-dept-total-label">${comparisonData.dataset1.dataType}</span>
+                <span class="betterbudgyt-dept-total-value">${formatNumber(d1Total)}</span>
+                <span class="betterbudgyt-dept-total-count">${d1Count} items</span>
+              </div>
+              <div class="betterbudgyt-dept-total betterbudgyt-dept-total-2">
+                <span class="betterbudgyt-dept-total-label">${comparisonData.dataset2.dataType}</span>
+                <span class="betterbudgyt-dept-total-value">${formatNumber(d2Total)}</span>
+                <span class="betterbudgyt-dept-total-count">${d2Count} items</span>
+              </div>
+              <div class="betterbudgyt-dept-total betterbudgyt-dept-variance ${varianceClass}">
+                <span class="betterbudgyt-dept-total-label">Variance</span>
+                <span class="betterbudgyt-dept-total-value">${formatNumber(variance)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="betterbudgyt-dept-card-body" style="display: none;">
+            ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode - transactions hidden</div>'}
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    }
   });
   
   tableHtml += `</div>`;
