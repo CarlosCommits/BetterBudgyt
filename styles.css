@@ -297,11 +297,12 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 }
 
 .betterbudgyt-comparison-modal-close {
-  background: rgba(255,255,255,0.1);
+  background: #ef4444;
   border: none;
-  font-size: 20px;
+  font-size: 24px;
+  font-weight: bold;
   cursor: pointer;
-  color: #94a3b8;
+  color: #fff;
   width: 36px;
   height: 36px;
   border-radius: 8px;
@@ -309,14 +310,15 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  line-height: 1;
 }
 
 .betterbudgyt-comparison-modal-close:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background: #dc2626;
+  transform: scale(1.1);
 }
 
-/* Toggle Switches */
+/* Toggle Switches - Now in toolbar */
 .betterbudgyt-comparison-toggle-container {
   display: flex;
   align-items: center;
@@ -331,18 +333,18 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 .betterbudgyt-comparison-toggle-slider {
   position: relative;
-  width: 40px;
-  height: 22px;
-  background: rgba(255,255,255,0.2);
-  border-radius: 11px;
+  width: 44px;
+  height: 24px;
+  background: #cbd5e1;
+  border-radius: 12px;
   transition: all 0.3s;
 }
 
 .betterbudgyt-comparison-toggle-slider::before {
   content: '';
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: #fff;
   top: 2px;
@@ -352,17 +354,25 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 }
 
 .betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider {
-  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
 }
 
 .betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider::before {
-  transform: translateX(18px);
+  transform: translateX(20px);
 }
 
 .betterbudgyt-comparison-toggle-label {
   font-size: 13px;
-  color: #cbd5e1;
+  color: #475569;
   font-weight: 500;
+}
+
+/* Toolbar Divider */
+.betterbudgyt-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: #e2e8f0;
+  margin: 0 8px;
 }
 
 /* Modal Body */
