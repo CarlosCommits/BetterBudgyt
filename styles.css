@@ -749,6 +749,28 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   width: 60px;
 }
 
+/* Single column mode - wider columns when more space available */
+.single-column-mode .betterbudgyt-mini-table {
+  table-layout: auto;
+}
+
+.single-column-mode .betterbudgyt-mini-table th:first-child,
+.single-column-mode .betterbudgyt-mini-table td:first-child {
+  width: auto;
+  min-width: 200px;
+}
+
+.single-column-mode .betterbudgyt-mini-table th:nth-child(2),
+.single-column-mode .betterbudgyt-mini-table td:nth-child(2) {
+  width: auto;
+  min-width: 120px;
+}
+
+.single-column-mode .betterbudgyt-mini-table th:last-child,
+.single-column-mode .betterbudgyt-mini-table td:last-child {
+  width: 70px;
+}
+
 .betterbudgyt-mini-table thead {
   position: sticky;
   top: 33px; /* Below the section header */
