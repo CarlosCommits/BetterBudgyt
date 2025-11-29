@@ -3415,11 +3415,18 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
         .betterbudgyt-search-container {
           flex: 0 0 250px !important;
           max-width: 250px !important;
+          overflow: hidden !important;
+          position: relative !important;
+        }
+        .betterbudgyt-search-input {
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .betterbudgyt-filter-chips {
           flex-shrink: 0 !important;
           display: flex !important;
           gap: 8px !important;
+          margin-left: 16px !important;
         }
         /* Match font sizes to main modal */
         body {
