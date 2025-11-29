@@ -354,23 +354,30 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   stroke-width: 3;
 }
 
-/* Minimized Tab at Bottom */
-.betterbudgyt-minimized-tab {
+/* Minimized Tabs Container */
+.betterbudgyt-minimized-tabs-container {
   position: fixed;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10001;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* Minimized Tab at Bottom */
+.betterbudgyt-minimized-tab {
   animation: slideUp 0.2s ease-out;
 }
 
 @keyframes slideUp {
   from {
-    transform: translateX(-50%) translateY(100%);
+    transform: translateY(100%);
     opacity: 0;
   }
   to {
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
     opacity: 1;
   }
 }

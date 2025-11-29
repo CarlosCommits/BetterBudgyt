@@ -3412,17 +3412,18 @@ function renderFailedSummary(comparisonData) {
   return `<div class="betterbudgyt-comparison-failed">Skipped/failed: ${failed.join(', ')}</div>`;
 }
 
+// Counter for unique modal IDs
+let comparisonModalCounter = 0;
+
 // Show comparison modal
 function showComparisonModal(comparisonData) {
-  // Remove any existing modal
-  const existingModal = document.querySelector('.betterbudgyt-comparison-modal');
-  if (existingModal) {
-    existingModal.remove();
-  }
+  // Generate unique ID for this modal
+  const modalId = `comparison-modal-${++comparisonModalCounter}`;
   
-  // Create modal
+  // Create modal (don't remove existing ones - allow multiple)
   const modal = document.createElement('div');
   modal.className = 'betterbudgyt-comparison-modal';
+  modal.dataset.modalId = modalId;
   
   // Get department counts
   const dataset1DeptCount = comparisonData.dataset1.departments?.length || 0;
@@ -3645,10 +3646,11 @@ function showComparisonModal(comparisonData) {
 
     // Add event listener for close button
     modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
-      // Also remove minimized tab if exists
-      const minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+      // Remove this modal's minimized tab if exists
+      const minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
       if (minimizedTab) minimizedTab.remove();
       modal.remove();
+      cleanupMinimizedTabsContainer();
     });
     
     // Add event listener for minimize button
@@ -3656,11 +3658,20 @@ function showComparisonModal(comparisonData) {
       // Hide the modal
       modal.style.display = 'none';
       
-      // Create or show minimized tab
-      let minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+      // Ensure container exists for minimized tabs
+      let tabsContainer = document.querySelector('.betterbudgyt-minimized-tabs-container');
+      if (!tabsContainer) {
+        tabsContainer = document.createElement('div');
+        tabsContainer.className = 'betterbudgyt-minimized-tabs-container';
+        document.body.appendChild(tabsContainer);
+      }
+      
+      // Check if tab for this modal already exists
+      let minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
       if (!minimizedTab) {
         minimizedTab = document.createElement('div');
         minimizedTab.className = 'betterbudgyt-minimized-tab';
+        minimizedTab.dataset.modalId = modalId;
         minimizedTab.innerHTML = `
           <div class="betterbudgyt-minimized-tab-content">
             <span class="betterbudgyt-minimized-tab-icon">📊</span>
@@ -3668,13 +3679,14 @@ function showComparisonModal(comparisonData) {
             <button class="betterbudgyt-minimized-tab-close" title="Close">&times;</button>
           </div>
         `;
-        document.body.appendChild(minimizedTab);
+        tabsContainer.appendChild(minimizedTab);
         
         // Click tab to restore
         minimizedTab.querySelector('.betterbudgyt-minimized-tab-content').addEventListener('click', (e) => {
           if (!e.target.classList.contains('betterbudgyt-minimized-tab-close')) {
             modal.style.display = '';
-            minimizedTab.style.display = 'none';
+            minimizedTab.remove();
+            cleanupMinimizedTabsContainer();
           }
         });
         
@@ -3683,6 +3695,7 @@ function showComparisonModal(comparisonData) {
           e.stopPropagation();
           minimizedTab.remove();
           modal.remove();
+          cleanupMinimizedTabsContainer();
         });
       } else {
         minimizedTab.style.display = '';
@@ -3692,23 +3705,33 @@ function showComparisonModal(comparisonData) {
     // Close modal when clicking outside
     modal.addEventListener('click', (event) => {
       if (event.target === modal) {
-        const minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+        const minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
         if (minimizedTab) minimizedTab.remove();
         modal.remove();
+        cleanupMinimizedTabsContainer();
       }
     });
     
-    // Escape key to close
+    // Escape key closes the topmost visible modal
     const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        const minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+      if (event.key === 'Escape' && modal.style.display !== 'none') {
+        const minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
         if (minimizedTab) minimizedTab.remove();
         modal.remove();
+        cleanupMinimizedTabsContainer();
         document.removeEventListener('keydown', handleEscape);
       }
     };
     document.addEventListener('keydown', handleEscape);
   });
+}
+
+// Clean up the tabs container if empty
+function cleanupMinimizedTabsContainer() {
+  const container = document.querySelector('.betterbudgyt-minimized-tabs-container');
+  if (container && container.children.length === 0) {
+    container.remove();
+  }
 }
 
 // Open department details in a new tab
