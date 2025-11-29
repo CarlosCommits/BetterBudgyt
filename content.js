@@ -3448,7 +3448,14 @@ function showComparisonModal(comparisonData) {
       <div class="betterbudgyt-comparison-modal-content">
         <div class="betterbudgyt-comparison-modal-header">
           <h2>${headerTitle}</h2>
-          <button class="betterbudgyt-comparison-modal-close" title="Close">&times;</button>
+          <div class="betterbudgyt-comparison-modal-controls">
+            <button class="betterbudgyt-comparison-modal-minimize" title="Minimize">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14"></path>
+              </svg>
+            </button>
+            <button class="betterbudgyt-comparison-modal-close" title="Close">&times;</button>
+          </div>
         </div>
         <div class="betterbudgyt-comparison-modal-body">
           <!-- Summary Cards -->
@@ -3638,12 +3645,55 @@ function showComparisonModal(comparisonData) {
 
     // Add event listener for close button
     modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
+      // Also remove minimized tab if exists
+      const minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+      if (minimizedTab) minimizedTab.remove();
       modal.remove();
+    });
+    
+    // Add event listener for minimize button
+    modal.querySelector('.betterbudgyt-comparison-modal-minimize').addEventListener('click', () => {
+      // Hide the modal
+      modal.style.display = 'none';
+      
+      // Create or show minimized tab
+      let minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+      if (!minimizedTab) {
+        minimizedTab = document.createElement('div');
+        minimizedTab.className = 'betterbudgyt-minimized-tab';
+        minimizedTab.innerHTML = `
+          <div class="betterbudgyt-minimized-tab-content">
+            <span class="betterbudgyt-minimized-tab-icon">📊</span>
+            <span class="betterbudgyt-minimized-tab-title">${headerTitle.replace('📊 ', '')}</span>
+            <button class="betterbudgyt-minimized-tab-close" title="Close">&times;</button>
+          </div>
+        `;
+        document.body.appendChild(minimizedTab);
+        
+        // Click tab to restore
+        minimizedTab.querySelector('.betterbudgyt-minimized-tab-content').addEventListener('click', (e) => {
+          if (!e.target.classList.contains('betterbudgyt-minimized-tab-close')) {
+            modal.style.display = '';
+            minimizedTab.style.display = 'none';
+          }
+        });
+        
+        // Close button on tab
+        minimizedTab.querySelector('.betterbudgyt-minimized-tab-close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          minimizedTab.remove();
+          modal.remove();
+        });
+      } else {
+        minimizedTab.style.display = '';
+      }
     });
     
     // Close modal when clicking outside
     modal.addEventListener('click', (event) => {
       if (event.target === modal) {
+        const minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+        if (minimizedTab) minimizedTab.remove();
         modal.remove();
       }
     });
@@ -3651,6 +3701,8 @@ function showComparisonModal(comparisonData) {
     // Escape key to close
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        const minimizedTab = document.querySelector('.betterbudgyt-minimized-tab');
+        if (minimizedTab) minimizedTab.remove();
         modal.remove();
         document.removeEventListener('keydown', handleEscape);
       }
