@@ -1729,6 +1729,8 @@ function performRowComparison(row, column1, column2) {
   // Start AJAX-based data fetching (reuse existing function)
   openDatasheetSequentially(cell1Data, cell2Data)
     .then(comparisonData => {
+      // Add account name to comparison data for display in modal header
+      comparisonData.accountName = description;
       hideComparisonLoadingIndicator();
       showComparisonModal(comparisonData);
       console.log('Row comparison completed successfully');
@@ -3436,11 +3438,16 @@ function showComparisonModal(comparisonData) {
     const hideMonths = settings.hideMonthsDefault;
     const classTotalsOnly = false; // Always false now, toggle removed
     
+    // Build header title - include account name if available
+    const headerTitle = comparisonData.accountName 
+      ? `📊 Datasheet Comparison - ${stripNumberPrefix(comparisonData.accountName)}`
+      : '📊 Datasheet Comparison';
+    
     // Create modal content with new modern layout
     modal.innerHTML = `
       <div class="betterbudgyt-comparison-modal-content">
         <div class="betterbudgyt-comparison-modal-header">
-          <h2>📊 Datasheet Comparison</h2>
+          <h2>${headerTitle}</h2>
           <button class="betterbudgyt-comparison-modal-close" title="Close">&times;</button>
         </div>
         <div class="betterbudgyt-comparison-modal-body">
