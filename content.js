@@ -3188,16 +3188,19 @@ function showComparisonModal(comparisonData) {
           if (filter === 'all') {
             // Two column layout
             grid.style.gridTemplateColumns = '1fr 1fr';
+            grid.classList.remove('single-column-mode');
             if (section1) section1.style.display = '';
             if (section2) section2.style.display = '';
           } else if (filter === 'dataset1') {
             // Single column - Actuals only
             grid.style.gridTemplateColumns = '1fr';
+            grid.classList.add('single-column-mode');
             if (section1) section1.style.display = '';
             if (section2) section2.style.display = 'none';
           } else if (filter === 'dataset2') {
             // Single column - Budget only
             grid.style.gridTemplateColumns = '1fr';
+            grid.classList.add('single-column-mode');
             if (section1) section1.style.display = 'none';
             if (section2) section2.style.display = '';
           }
