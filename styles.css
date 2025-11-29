@@ -726,11 +726,10 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #64748b;
-  padding: 8px 8px 8px 0;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 8px 6px;
+  border-bottom: 2px solid #cbd5e1;
   white-space: nowrap;
-  background: #fff;
-  box-shadow: 0 1px 0 #e2e8f0; /* Adds visual separation */
+  background: #f1f5f9;
 }
 
 .betterbudgyt-mini-table th:last-child {
@@ -738,9 +737,21 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 }
 
 .betterbudgyt-mini-table td {
-  padding: 8px 8px 8px 0;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: top;
+  padding: 8px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+
+.betterbudgyt-mini-table tbody tr:nth-child(odd) {
+  background: #f8fafc;
+}
+
+.betterbudgyt-mini-table tbody tr:nth-child(even) {
+  background: #fff;
+}
+
+.betterbudgyt-mini-table tbody tr:hover {
+  background: #e0f2fe;
 }
 
 .betterbudgyt-mini-table tr:last-child td {
@@ -750,9 +761,10 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 .betterbudgyt-mini-desc {
   font-weight: 500;
   color: #334155;
-  min-width: 180px;
-  max-width: 280px;
+  min-width: 120px;
+  max-width: 180px;
   word-wrap: break-word;
+  font-size: 12px;
 }
 
 .betterbudgyt-mini-vendor {
@@ -766,8 +778,9 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 .betterbudgyt-mini-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: #64748b;
+  color: #475569;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .betterbudgyt-mini-total {
