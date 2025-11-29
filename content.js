@@ -2705,29 +2705,33 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
     };
     if (refererUrl) headers['Referer'] = refererUrl;
     
-    // Fetch Level 2 transaction data for each department (only if Level 0 totals are non-zero)
-    for (const deptInfo of departmentStoreUIDs) {
+    // Filter departments with non-zero Level 0 totals
+    const deptsToFetch = departmentStoreUIDs.filter(deptInfo => {
+      const level0Total = deptInfo.total || 0;
+      const level0HasData = deptInfo.monthly 
+        ? Object.values(deptInfo.monthly).some(v => Math.abs(v) > 0.0001)
+        : false;
+      
+      if (Math.abs(level0Total) < 0.0001 && !level0HasData) {
+        console.log(`Skipping ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}) - Level 0 totals are zero`);
+        return false;
+      }
+      return true;
+    });
+    
+    console.log(`Fetching ${deptsToFetch.length} departments in PARALLEL...`);
+    const deptFetchStart = performance.now();
+    
+    // Fetch all departments in PARALLEL
+    const deptPromises = deptsToFetch.map(async (deptInfo) => {
       try {
-        // PRE-CHECK: Use Level 0 totals to skip departments with no data
-        // This avoids unnecessary API calls for empty departments
-        const level0Total = deptInfo.total || 0;
-        const level0HasData = deptInfo.monthly 
-          ? Object.values(deptInfo.monthly).some(v => Math.abs(v) > 0.0001)
-          : false;
-        
-        if (Math.abs(level0Total) < 0.0001 && !level0HasData) {
-          console.log(`Skipping ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}) - Level 0 totals are zero`);
-          continue;
-        }
-        
-        console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}, Level0 total: ${level0Total})`);
+        console.log(`Processing department: ${deptInfo.departmentName} (StoreUID: ${deptInfo.storeUID}, Level0 total: ${deptInfo.total || 0})`);
         
         // Clone parameters for this department's Level 2 request
-        // IMPORTANT: Keep original DeptUID from parameters, only change StoreUID
         const deptParameters = {
           level: '2',
           StoreUID: deptInfo.storeUID,
-          DeptUID: parameters.DeptUID || '3',  // Keep original DeptUID, don't use storeUID
+          DeptUID: parameters.DeptUID || '3',
           CategoryUID: parameters.CategoryUID || '-1',
           groupedcategory: parameters.groupedcategory,
           CompNonCompfilter: parameters.CompNonCompfilter || '',
@@ -2740,8 +2744,6 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
           localoffset: parameters.localoffset || new Date().getTimezoneOffset().toString()
         };
         
-        console.log(`Level 2 request parameters for ${deptInfo.departmentName}:`, JSON.stringify(deptParameters, null, 2));
-        
         const response = await fetch('/Budget/GetRowData', {
           method: 'POST',
           headers: headers,
@@ -2750,41 +2752,55 @@ async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
         
         if (response.ok) {
           const responseText = await response.text();
-          console.log(`Level 2 response for ${deptInfo.departmentName} (first 300 chars):`, responseText.substring(0, 300));
-          
           const deptData = await parseDatasheetHtml(responseText, deptInfo.departmentName);
           deptData.departmentName = deptInfo.departmentName;
           deptData.storeUID = deptInfo.storeUID;
           deptData.deptUID = deptInfo.deptUID;
           
-          // Check if we got any transactions with data
           const hasTransactions = (deptData.transactions || []).length > 0;
           const deptTotalVal = deptData.totals.total || 0;
           
           console.log(`${deptInfo.departmentName}: Found ${deptData.transactions?.length || 0} transactions, total=${deptTotalVal}`);
           
           if (hasTransactions || Math.abs(deptTotalVal) > 0.0001) {
-            result.departments.push(deptData);
-            deptData.transactions.forEach(t => {
-              result.transactions.push({ 
-                ...t, 
-                departmentName: deptInfo.departmentName, 
-                storeUID: deptInfo.storeUID 
-              });
-            });
-            console.log(`Successfully processed department ${deptInfo.departmentName}`);
+            return { success: true, deptData, deptInfo };
           } else {
             console.log(`Skipping department ${deptInfo.departmentName} (no transactions or zero totals)`);
+            return { success: false, skipped: true };
           }
         } else {
           console.error(`Level 2 request failed for ${deptInfo.departmentName}: ${response.status}`);
+          return { success: false, error: `HTTP ${response.status}`, deptInfo };
         }
       } catch (error) {
         console.error(`Error processing department ${deptInfo.departmentName}:`, error);
+        return { success: false, error: error.message, deptInfo };
+      }
+    });
+    
+    // Wait for all department fetches to complete
+    const deptResults = await Promise.all(deptPromises);
+    
+    const deptFetchTime = performance.now() - deptFetchStart;
+    console.log(`All ${deptsToFetch.length} departments fetched in ${deptFetchTime.toFixed(0)}ms (parallel)`);
+    
+    // Process results
+    for (const res of deptResults) {
+      if (res.success && res.deptData) {
+        result.departments.push(res.deptData);
+        res.deptData.transactions.forEach(t => {
+          result.transactions.push({ 
+            ...t, 
+            departmentName: res.deptInfo.departmentName, 
+            storeUID: res.deptInfo.storeUID 
+          });
+        });
+        console.log(`Successfully processed department ${res.deptInfo.departmentName}`);
+      } else if (res.error && res.deptInfo) {
         result.failedDepartments.push({
-          departmentName: deptInfo.departmentName,
-          storeUID: deptInfo.storeUID,
-          error: error.message
+          departmentName: res.deptInfo.departmentName,
+          storeUID: res.deptInfo.storeUID,
+          error: res.error
         });
       }
     }
