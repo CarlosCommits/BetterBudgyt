@@ -2932,8 +2932,12 @@ async function parseDatasheetHtml(responseText, departmentName) {
   return result;
 }
 
-// Open datasheets sequentially using AJAX
-async function openDatasheetSequentially(cell1Data, cell2Data) {
+// Cache for datasheet data - key is dataHref, value is { cellTotal, data, timestamp }
+const datasheetCache = new Map();
+const CACHE_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes max cache age
+
+// Open datasheets in parallel using AJAX (with caching)
+async function openDatasheetsParallel(cell1Data, cell2Data) {
   // Create result object
   const comparisonData = {
     dataset1: {
@@ -2990,23 +2994,62 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
       }
     });
     
-    // Fetch data for first datasheet
-    console.log('Fetching first datasheet:', cell1Data.description);
-    comparisonData.dataset1 = await fetchDatasheetData(
-      ajaxParams1, 
-      cell1Data.description, 
-      cell1Data.columnType, 
-      cell1Params.dataHref
-    );
+    // Helper to fetch with caching
+    const fetchWithCache = async (ajaxParams, cellData, cellParams) => {
+      const cacheKey = cellParams.dataHref;
+      const cellTotal = cellData.value; // The displayed value in the P&L cell
+      const cached = datasheetCache.get(cacheKey);
+      const now = Date.now();
+      
+      // Check if cache is valid
+      if (cached) {
+        const isExpired = (now - cached.timestamp) > CACHE_MAX_AGE_MS;
+        const totalMatches = Math.abs(cached.cellTotal - cellTotal) < 0.01;
+        
+        if (!isExpired && totalMatches) {
+          console.log(`✓ Cache HIT for ${cellData.description} (${cellData.columnType}) - using cached data`);
+          return cached.data;
+        } else {
+          console.log(`✗ Cache MISS for ${cellData.description}: expired=${isExpired}, totalChanged=${!totalMatches} (cached: ${cached.cellTotal}, current: ${cellTotal})`);
+        }
+      } else {
+        console.log(`✗ Cache MISS for ${cellData.description}: no cached data`);
+      }
+      
+      // Fetch fresh data
+      const data = await fetchDatasheetData(
+        ajaxParams,
+        cellData.description,
+        cellData.columnType,
+        cellParams.dataHref
+      );
+      
+      // Cache the result
+      datasheetCache.set(cacheKey, {
+        cellTotal: cellTotal,
+        data: data,
+        timestamp: now
+      });
+      console.log(`Cached data for ${cellData.description} (key: ${cacheKey})`);
+      
+      return data;
+    };
     
-    // Fetch data for second datasheet
+    // Fetch datasheets SEQUENTIALLY to avoid session race condition
+    // (The server uses session state for budget context, parallel calls interfere)
+    console.log('Fetching datasheets with caching...');
+    const startTime = performance.now();
+    
+    // Fetch first dataset
+    console.log('Fetching first datasheet:', cell1Data.description);
+    comparisonData.dataset1 = await fetchWithCache(ajaxParams1, cell1Data, cell1Params);
+    
+    // Fetch second dataset
     console.log('Fetching second datasheet:', cell2Data.description);
-    comparisonData.dataset2 = await fetchDatasheetData(
-      ajaxParams2, 
-      cell2Data.description, 
-      cell2Data.columnType, 
-      cell2Params.dataHref
-    );
+    comparisonData.dataset2 = await fetchWithCache(ajaxParams2, cell2Data, cell2Params);
+    
+    const elapsed = performance.now() - startTime;
+    console.log(`Both datasheets fetched in ${elapsed.toFixed(0)}ms`);
     
     return comparisonData;
   } catch (error) {
@@ -3014,6 +3057,11 @@ async function openDatasheetSequentially(cell1Data, cell2Data) {
     const msg = error?.message || 'Unknown error';
     throw new Error(`Failed to compare datasheets: ${msg}`);
   }
+}
+
+// Legacy alias for backward compatibility
+async function openDatasheetSequentially(cell1Data, cell2Data) {
+  return openDatasheetsParallel(cell1Data, cell2Data);
 }
 
 // Scrape datasheet data from document
