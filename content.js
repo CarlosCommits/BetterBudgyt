@@ -4481,21 +4481,24 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
 function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
   let html = '<div class="betterbudgyt-transactions-grid">';
   
-  // Dataset 1 transactions
+  // Dataset 1 transactions - ALWAYS render the section to maintain layout
+  html += `
+    <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-1">
+      <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset1.dataType}</div>
+  `;
+  
   if (deptData.dataset1?.transactions?.length > 0) {
     html += `
-      <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-1">
-        <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset1.dataType}</div>
-        <table class="betterbudgyt-mini-table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Vendor</th>
-              ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
+      <table class="betterbudgyt-mini-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Vendor</th>
+            ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
     `;
     deptData.dataset1.transactions.forEach(t => {
       html += `
@@ -4507,24 +4510,30 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
         </tr>
       `;
     });
-    html += '</tbody></table></div>';
+    html += '</tbody></table>';
+  } else {
+    html += '<div class="betterbudgyt-no-transactions">No transactions</div>';
   }
+  html += '</div>';
   
-  // Dataset 2 transactions
+  // Dataset 2 transactions - ALWAYS render the section to maintain layout
+  html += `
+    <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-2">
+      <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset2.dataType}</div>
+  `;
+  
   if (deptData.dataset2?.transactions?.length > 0) {
     html += `
-      <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-2">
-        <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset2.dataType}</div>
-        <table class="betterbudgyt-mini-table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Vendor</th>
-              ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
+      <table class="betterbudgyt-mini-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Vendor</th>
+            ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
     `;
     deptData.dataset2.transactions.forEach(t => {
       html += `
@@ -4536,12 +4545,11 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
         </tr>
       `;
     });
-    html += '</tbody></table></div>';
-  }
-  
-  if (!deptData.dataset1?.transactions?.length && !deptData.dataset2?.transactions?.length) {
+    html += '</tbody></table>';
+  } else {
     html += '<div class="betterbudgyt-no-transactions">No transactions</div>';
   }
+  html += '</div>';
   
   html += '</div>';
   return html;
