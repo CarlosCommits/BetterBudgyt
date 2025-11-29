@@ -3278,6 +3278,16 @@ function showComparisonModal(comparisonData) {
       }
     });
     
+    // Add event listener for pop-out buttons
+    modal.addEventListener('click', (event) => {
+      const popoutBtn = event.target.closest('.betterbudgyt-dept-popout-btn');
+      if (popoutBtn) {
+        event.stopPropagation(); // Prevent card expansion
+        const deptId = popoutBtn.dataset.dept;
+        openDepartmentInNewTab(deptId, comparisonData, hideMonths);
+      }
+    });
+
     // Add event listener for close button
     modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
       modal.remove();
@@ -3299,6 +3309,451 @@ function showComparisonModal(comparisonData) {
     };
     document.addEventListener('keydown', handleEscape);
   });
+}
+
+// Open department details in a new tab
+async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths) {
+  // Find department data in both datasets
+  const dept1 = originalComparisonData.dataset1.departments?.find(d => d.storeUID === deptId);
+  const dept2 = originalComparisonData.dataset2.departments?.find(d => d.storeUID === deptId);
+  
+  if (!dept1 && !dept2) return;
+  
+  const deptName = dept1?.departmentName || dept2?.departmentName || 'Department Detail';
+  
+  // Calculate totals for this department
+  const d1Total = dept1 ? (dept1.totals?.total || dept1.transactions?.reduce((s, t) => s + (t.total || 0), 0) || 0) : 0;
+  const d2Total = dept2 ? (dept2.totals?.total || dept2.transactions?.reduce((s, t) => s + (t.total || 0), 0) || 0) : 0;
+  const variance = d1Total - d2Total;
+  
+  const d1Count = dept1?.transactions?.length || 0;
+  const d2Count = dept2?.transactions?.length || 0;
+
+  // Create a single-department comparison object
+  const singleDeptData = {
+    dataset1: {
+      dataType: originalComparisonData.dataset1.dataType,
+      grandTotals: { total: d1Total },
+      departments: dept1 ? [dept1] : [],
+      transactions: dept1?.transactions || []
+    },
+    dataset2: {
+      dataType: originalComparisonData.dataset2.dataType,
+      grandTotals: { total: d2Total },
+      departments: dept2 ? [dept2] : [],
+      transactions: dept2?.transactions || []
+    }
+  };
+
+  // Generate the table HTML using the existing function
+  const tableHtml = generateComparisonTable(singleDeptData, hideMonths, false);
+  
+  // Fetch the extension's CSS file directly
+  let extensionCss = '';
+  try {
+    const cssUrl = chrome.runtime.getURL('styles.css');
+    const response = await fetch(cssUrl);
+    extensionCss = await response.text();
+  } catch (e) {
+    console.error('Failed to load extension CSS:', e);
+  }
+
+  // Build the full interactive page
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${stripNumberPrefix(deptName)} - Comparison</title>
+      <meta charset="UTF-8">
+      <style>${extensionCss}</style>
+      <style>
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          overflow: hidden;
+        }
+        .betterbudgyt-comparison-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: #f8fafc;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1;
+        }
+        .betterbudgyt-comparison-modal-content {
+          background: #fff;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        /* Hide close button and popout button in standalone view */
+        .betterbudgyt-comparison-modal-close { display: none !important; }
+        .betterbudgyt-dept-popout-btn { display: none !important; }
+        /* Force card to be expanded in pop-out view */
+        .betterbudgyt-dept-card { border-color: #e2e8f0 !important; }
+        .betterbudgyt-dept-card-body { display: block !important; }
+        .betterbudgyt-dept-card .betterbudgyt-dept-expand-btn { 
+          transform: rotate(90deg); 
+          background: #3b82f6; 
+          color: #fff; 
+        }
+        /* Fix toolbar layout */
+        .betterbudgyt-comparison-toolbar {
+          display: flex !important;
+          flex-wrap: nowrap !important;
+          align-items: center !important;
+          gap: 16px !important;
+          padding: 8px 20px !important;
+        }
+        .betterbudgyt-search-container {
+          flex: 0 0 250px !important;
+          max-width: 250px !important;
+        }
+        .betterbudgyt-filter-chips {
+          flex-shrink: 0 !important;
+          display: flex !important;
+          gap: 8px !important;
+        }
+        /* Match font sizes to main modal */
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+          font-size: 14px !important;
+        }
+        .betterbudgyt-mini-table {
+          font-size: 13px !important;
+        }
+        .betterbudgyt-mini-table th,
+        .betterbudgyt-mini-table td {
+          padding: 8px 10px !important;
+        }
+        .betterbudgyt-dept-card-header {
+          font-size: 14px !important;
+        }
+        .betterbudgyt-summary-card-value {
+          font-size: 1.5rem !important;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="betterbudgyt-comparison-modal">
+        <div class="betterbudgyt-comparison-modal-content">
+          <div class="betterbudgyt-comparison-modal-header">
+            <h2>📊 ${stripNumberPrefix(deptName)}</h2>
+          </div>
+          <div class="betterbudgyt-comparison-modal-body">
+            <!-- Summary Cards -->
+            <div class="betterbudgyt-comparison-summary-section">
+              <div class="betterbudgyt-comparison-summary-cards">
+                <div class="betterbudgyt-summary-card betterbudgyt-summary-card-dataset1">
+                  <div class="betterbudgyt-summary-card-title">${singleDeptData.dataset1.dataType}</div>
+                  <div class="betterbudgyt-summary-card-value">${formatNumber(d1Total)}</div>
+                  <div class="betterbudgyt-summary-card-subtitle">1 department · ${d1Count} transactions</div>
+                </div>
+                <div class="betterbudgyt-summary-card betterbudgyt-summary-card-dataset2">
+                  <div class="betterbudgyt-summary-card-title">${singleDeptData.dataset2.dataType}</div>
+                  <div class="betterbudgyt-summary-card-value">${formatNumber(d2Total)}</div>
+                  <div class="betterbudgyt-summary-card-subtitle">1 department · ${d2Count} transactions</div>
+                </div>
+                <div class="betterbudgyt-summary-card betterbudgyt-summary-card-diff">
+                  <div class="betterbudgyt-summary-card-title">Variance</div>
+                  <div class="betterbudgyt-summary-card-value">${formatNumber(variance)}</div>
+                  <div class="betterbudgyt-summary-card-subtitle">${singleDeptData.dataset1.dataType} − ${singleDeptData.dataset2.dataType}</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Search & Filter Toolbar -->
+            <div class="betterbudgyt-comparison-toolbar">
+              <div class="betterbudgyt-search-container">
+                <svg class="betterbudgyt-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" class="betterbudgyt-search-input" id="comparisonSearch" placeholder="Search descriptions, vendors...">
+              </div>
+              <div class="betterbudgyt-filter-chips">
+                <button class="betterbudgyt-filter-chip active" data-filter="all">All</button>
+                <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset1" data-filter="dataset1">${singleDeptData.dataset1.dataType}</button>
+                <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset2" data-filter="dataset2">${singleDeptData.dataset2.dataType}</button>
+              </div>
+              <div class="betterbudgyt-toolbar-divider"></div>
+              <label class="betterbudgyt-comparison-toggle-container" title="Hide monthly breakdown columns">
+                <input type="checkbox" id="hideMonthsToggle" ${hideMonths ? 'checked' : ''}>
+                <span class="betterbudgyt-comparison-toggle-slider"></span>
+                <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
+              </label>
+            </div>
+            
+            <!-- Table Container -->
+            <div class="betterbudgyt-comparison-table-container">
+              ${tableHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        // Store the comparison data for regeneration
+        // Properly escaped JSON to prevent script injection
+        const comparisonData = ${JSON.stringify(singleDeptData).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')};
+        const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+        
+        console.log('Pop-out initialized with data:', comparisonData);
+        
+        // Format number helper
+        function formatNumber(num) {
+          if (num === null || num === undefined || isNaN(num)) return '0';
+          return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+          }).format(num);
+        }
+        
+        // Strip number prefix helper
+        function stripNumberPrefix(str) {
+          if (!str) return str;
+          return str.replace(/^\\d+[-.]?\\s*/, '');
+        }
+        
+        // Generate transactions HTML
+        function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
+          let html = '<div class="betterbudgyt-transactions-grid">';
+          
+          if (deptData.dataset1?.transactions?.length > 0) {
+            html += '<div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-1">';
+            html += '<div class="betterbudgyt-transactions-section-header">' + comparisonData.dataset1.dataType + '</div>';
+            html += '<table class="betterbudgyt-mini-table"><thead><tr>';
+            html += '<th>Description</th><th>Vendor</th>';
+            if (!hideMonths) months.forEach(m => html += '<th>' + m + '</th>');
+            html += '<th>Total</th></tr></thead><tbody>';
+            deptData.dataset1.transactions.forEach(t => {
+              html += '<tr><td class="betterbudgyt-mini-desc">' + (t.description || 'No Description') + '</td>';
+              html += '<td class="betterbudgyt-mini-vendor">' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
+              if (!hideMonths) months.forEach(m => html += '<td class="betterbudgyt-mini-value">' + formatNumber(t.monthly?.[m] || 0) + '</td>');
+              html += '<td class="betterbudgyt-mini-total">' + formatNumber(t.total || 0) + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+          
+          if (deptData.dataset2?.transactions?.length > 0) {
+            html += '<div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-2">';
+            html += '<div class="betterbudgyt-transactions-section-header">' + comparisonData.dataset2.dataType + '</div>';
+            html += '<table class="betterbudgyt-mini-table"><thead><tr>';
+            html += '<th>Description</th><th>Vendor</th>';
+            if (!hideMonths) months.forEach(m => html += '<th>' + m + '</th>');
+            html += '<th>Total</th></tr></thead><tbody>';
+            deptData.dataset2.transactions.forEach(t => {
+              html += '<tr><td class="betterbudgyt-mini-desc">' + (t.description || 'No Description') + '</td>';
+              html += '<td class="betterbudgyt-mini-vendor">' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
+              if (!hideMonths) months.forEach(m => html += '<td class="betterbudgyt-mini-value">' + formatNumber(t.monthly?.[m] || 0) + '</td>');
+              html += '<td class="betterbudgyt-mini-total">' + formatNumber(t.total || 0) + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+          
+          if (!deptData.dataset1?.transactions?.length && !deptData.dataset2?.transactions?.length) {
+            html += '<div class="betterbudgyt-no-transactions">No transactions</div>';
+          }
+          
+          html += '</div>';
+          return html;
+        }
+        
+        // Generate comparison table
+        function generateComparisonTable(comparisonData, hideMonths) {
+          const dept1 = comparisonData.dataset1.departments?.[0];
+          const dept2 = comparisonData.dataset2.departments?.[0];
+          const deptName = dept1?.departmentName || dept2?.departmentName || 'Department';
+          const storeUID = dept1?.storeUID || dept2?.storeUID || '';
+          
+          const deptData = { name: deptName, storeUID, dataset1: dept1, dataset2: dept2 };
+          
+          const d1Total = dept1?.totals?.total || dept1?.transactions?.reduce((s,t) => s + (t.total||0), 0) || 0;
+          const d2Total = dept2?.totals?.total || dept2?.transactions?.reduce((s,t) => s + (t.total||0), 0) || 0;
+          const variance = d1Total - d2Total;
+          const varianceClass = variance > 0 ? 'positive' : variance < 0 ? 'negative' : 'zero';
+          const d1Count = dept1?.transactions?.length || 0;
+          const d2Count = dept2?.transactions?.length || 0;
+          
+          return '<div class="betterbudgyt-dept-comparison-list">' +
+            '<div class="betterbudgyt-dept-card expanded" data-dept="' + storeUID + '">' +
+              '<div class="betterbudgyt-dept-card-header">' +
+                '<div class="betterbudgyt-dept-card-title">' +
+                  '<span class="betterbudgyt-dept-expand-btn">▶</span>' +
+                  '<span class="betterbudgyt-dept-name">' + stripNumberPrefix(deptName) + '</span>' +
+                '</div>' +
+                '<div class="betterbudgyt-dept-card-totals">' +
+                  '<div class="betterbudgyt-dept-total betterbudgyt-dept-total-1">' +
+                    '<span class="betterbudgyt-dept-total-label">' + comparisonData.dataset1.dataType + '</span>' +
+                    '<span class="betterbudgyt-dept-total-value">' + formatNumber(d1Total) + '</span>' +
+                    '<span class="betterbudgyt-dept-total-count">' + d1Count + ' items</span>' +
+                  '</div>' +
+                  '<div class="betterbudgyt-dept-total betterbudgyt-dept-total-2">' +
+                    '<span class="betterbudgyt-dept-total-label">' + comparisonData.dataset2.dataType + '</span>' +
+                    '<span class="betterbudgyt-dept-total-value">' + formatNumber(d2Total) + '</span>' +
+                    '<span class="betterbudgyt-dept-total-count">' + d2Count + ' items</span>' +
+                  '</div>' +
+                  '<div class="betterbudgyt-dept-total betterbudgyt-dept-variance ' + varianceClass + '">' +
+                    '<span class="betterbudgyt-dept-total-label">Variance</span>' +
+                    '<span class="betterbudgyt-dept-total-value">' + formatNumber(variance) + '</span>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="betterbudgyt-dept-card-body" style="display: block;">' +
+                generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }
+
+        // Initialize interactivity - run immediately or when ready
+        (function initPopout() {
+          console.log('initPopout called, readyState:', document.readyState);
+          
+          // Wait for DOM to be ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupInteractivity);
+          } else {
+            setupInteractivity();
+          }
+          
+          function setupInteractivity() {
+            console.log('setupInteractivity called');
+            const modal = document.querySelector('.betterbudgyt-comparison-modal');
+            if (!modal) {
+              console.error('Modal not found!');
+              return;
+            }
+            
+            let currentHideMonths = ${hideMonths};
+            console.log('Initial hideMonths:', currentHideMonths);
+            
+            // Search functionality
+            const searchInput = modal.querySelector('#comparisonSearch');
+            if (searchInput) {
+              console.log('Search input found');
+              searchInput.addEventListener('input', (event) => {
+                const searchTerm = event.target.value.toLowerCase();
+                const rows = modal.querySelectorAll('.betterbudgyt-mini-table tbody tr');
+                rows.forEach(row => {
+                  const text = row.textContent.toLowerCase();
+                  row.style.display = searchTerm === '' || text.includes(searchTerm) ? '' : 'none';
+                });
+              });
+            }
+            
+            // Filter chips
+            const filterChips = modal.querySelectorAll('.betterbudgyt-filter-chip');
+            console.log('Found filter chips:', filterChips.length);
+            filterChips.forEach(chip => {
+              chip.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Filter chip clicked:', chip.dataset.filter);
+                filterChips.forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                
+                const filter = chip.dataset.filter;
+                const grids = modal.querySelectorAll('.betterbudgyt-transactions-grid');
+                console.log('Found grids:', grids.length);
+                
+                grids.forEach(grid => {
+                  const section1 = grid.querySelector('.betterbudgyt-transactions-section-1');
+                  const section2 = grid.querySelector('.betterbudgyt-transactions-section-2');
+                  
+                  if (filter === 'all') {
+                    grid.style.gridTemplateColumns = '1fr 1fr';
+                    grid.classList.remove('single-column-mode');
+                    if (section1) section1.style.display = '';
+                    if (section2) section2.style.display = '';
+                  } else if (filter === 'dataset1') {
+                    grid.style.gridTemplateColumns = '1fr';
+                    grid.classList.add('single-column-mode');
+                    if (section1) section1.style.display = '';
+                    if (section2) section2.style.display = 'none';
+                  } else if (filter === 'dataset2') {
+                    grid.style.gridTemplateColumns = '1fr';
+                    grid.classList.add('single-column-mode');
+                    if (section1) section1.style.display = 'none';
+                    if (section2) section2.style.display = '';
+                  }
+                });
+              });
+            });
+            
+            // Expand/collapse - disabled since we force expanded in CSS
+            // But keep it for consistency
+            modal.addEventListener('click', (event) => {
+              const cardHeader = event.target.closest('.betterbudgyt-dept-card-header');
+              if (cardHeader) {
+                const card = cardHeader.closest('.betterbudgyt-dept-card');
+                const body = card.querySelector('.betterbudgyt-dept-card-body');
+                const isExpanded = body.style.display !== 'none';
+                body.style.display = isExpanded ? 'none' : 'block';
+                const expandBtn = card.querySelector('.betterbudgyt-dept-expand-btn');
+                if (expandBtn) {
+                  expandBtn.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(90deg)';
+                  expandBtn.style.background = isExpanded ? '#e2e8f0' : '#3b82f6';
+                  expandBtn.style.color = isExpanded ? '#3b82f6' : '#fff';
+                }
+              }
+            });
+            
+            // Hide months toggle
+            const toggleCheckbox = modal.querySelector('#hideMonthsToggle');
+            console.log('Toggle checkbox found:', !!toggleCheckbox);
+            if (toggleCheckbox) {
+              toggleCheckbox.addEventListener('change', (event) => {
+                console.log('Hide months toggled:', event.target.checked);
+                currentHideMonths = event.target.checked;
+                const activeChip = modal.querySelector('.betterbudgyt-filter-chip.active');
+                const currentFilter = activeChip ? activeChip.dataset.filter : 'all';
+                
+                const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+                console.log('Regenerating table with hideMonths:', currentHideMonths);
+                tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths);
+                
+                // Restore filter mode
+                if (currentFilter !== 'all') {
+                  const grids = tableContainer.querySelectorAll('.betterbudgyt-transactions-grid');
+                  grids.forEach(grid => {
+                    const section1 = grid.querySelector('.betterbudgyt-transactions-section-1');
+                    const section2 = grid.querySelector('.betterbudgyt-transactions-section-2');
+                    grid.style.gridTemplateColumns = '1fr';
+                    grid.classList.add('single-column-mode');
+                    if (currentFilter === 'dataset1') {
+                      if (section1) section1.style.display = '';
+                      if (section2) section2.style.display = 'none';
+                    } else if (currentFilter === 'dataset2') {
+                      if (section1) section1.style.display = 'none';
+                      if (section2) section2.style.display = '';
+                    }
+                  });
+                }
+              });
+            }
+          }
+        })();
+      </script>
+    </body>
+    </html>
+  `;
+  
+  // Use Blob URL to bypass CSP restrictions
+  const blob = new Blob([html], { type: 'text/html' });
+  const blobUrl = URL.createObjectURL(blob);
+  const win = window.open(blobUrl, '_blank');
+  
+  if (!win) {
+    alert('Please allow pop-ups to view department details.');
+    URL.revokeObjectURL(blobUrl);
+  }
 }
 
 // Generate comparison table HTML - Department-first comparison format
@@ -3366,6 +3821,13 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
           <div class="betterbudgyt-dept-card-title">
             <span class="betterbudgyt-dept-expand-btn">▶</span>
             <span class="betterbudgyt-dept-name">${stripNumberPrefix(deptName)}</span>
+            <button class="betterbudgyt-dept-popout-btn" title="Open in new tab" data-dept="${deptData.storeUID}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </button>
           </div>
           <div class="betterbudgyt-dept-card-totals">
             <div class="betterbudgyt-dept-total betterbudgyt-dept-total-1">
