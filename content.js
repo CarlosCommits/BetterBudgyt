@@ -1526,6 +1526,313 @@ function performComparison() {
     });
 }
 
+// ===== ROW HOVER COMPARE BUTTON FEATURE =====
+
+// Get available comparison columns from a row
+function getAvailableColumns(row) {
+  const columns = [];
+  
+  // Check for Actuals column
+  const actualsCell = row.querySelector('td.actual-budgetVal');
+  if (actualsCell && hasDatasheetLink(actualsCell)) {
+    columns.push({
+      type: 'actual-budgetVal',
+      name: actualsCell.getAttribute('title') || 'Actuals',
+      cell: actualsCell
+    });
+  }
+  
+  // Check for Budget column (compare-budgetVal)
+  const budgetCell = row.querySelector('td.compare-budgetVal');
+  if (budgetCell && hasDatasheetLink(budgetCell)) {
+    columns.push({
+      type: 'compare-budgetVal',
+      name: budgetCell.getAttribute('title') || 'Budget',
+      cell: budgetCell
+    });
+  }
+  
+  // Check for Previous Year / Third column (actual-budgetLYVal)
+  const lyCell = row.querySelector('td.actual-budgetLYVal');
+  if (lyCell && hasDatasheetLink(lyCell)) {
+    columns.push({
+      type: 'actual-budgetLYVal',
+      name: lyCell.getAttribute('title') || 'Previous Year',
+      cell: lyCell
+    });
+  }
+  
+  return columns;
+}
+
+// Show column selector modal
+function showColumnSelectorModal(row) {
+  const columns = getAvailableColumns(row);
+  
+  if (columns.length < 2) {
+    alert('This row needs at least 2 comparable columns to perform a comparison.');
+    return;
+  }
+  
+  // Get row description
+  const descriptionCell = row.querySelector('td .label a, td .label span');
+  const description = descriptionCell ? descriptionCell.textContent.trim() : 'Unknown Account';
+  
+  // Remove existing modal if any
+  const existingModal = document.querySelector('.betterbudgyt-column-selector-modal');
+  if (existingModal) existingModal.remove();
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'betterbudgyt-column-selector-modal';
+  
+  modal.innerHTML = `
+    <div class="betterbudgyt-column-selector-content">
+      <div class="betterbudgyt-column-selector-header">
+        <h3>Compare Datasheets</h3>
+        <button class="betterbudgyt-column-selector-close">&times;</button>
+      </div>
+      <div class="betterbudgyt-column-selector-body">
+        <div class="betterbudgyt-column-selector-account">
+          <span class="betterbudgyt-column-selector-label">Account:</span>
+          <span class="betterbudgyt-column-selector-value">${description}</span>
+        </div>
+        <div class="betterbudgyt-column-selector-instruction">
+          Select two columns to compare:
+        </div>
+        <div class="betterbudgyt-column-checkboxes">
+          ${columns.map((col, index) => `
+            <label class="betterbudgyt-column-checkbox">
+              <input type="checkbox" name="column" value="${index}" data-column-type="${col.type}">
+              <span class="betterbudgyt-column-checkbox-indicator"></span>
+              <span class="betterbudgyt-column-checkbox-label">${col.name}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div class="betterbudgyt-column-selector-footer">
+        <button class="betterbudgyt-column-selector-btn betterbudgyt-column-selector-btn-cancel">Cancel</button>
+        <button class="betterbudgyt-column-selector-btn betterbudgyt-column-selector-btn-compare" disabled>Compare</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Get elements
+  const checkboxes = modal.querySelectorAll('input[name="column"]');
+  const compareBtn = modal.querySelector('.betterbudgyt-column-selector-btn-compare');
+  const cancelBtn = modal.querySelector('.betterbudgyt-column-selector-btn-cancel');
+  const closeBtn = modal.querySelector('.betterbudgyt-column-selector-close');
+  
+  // Handle checkbox changes - only allow 2 selections
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const checked = modal.querySelectorAll('input[name="column"]:checked');
+      
+      // If more than 2 selected, uncheck the oldest one
+      if (checked.length > 2) {
+        checkboxes.forEach(c => {
+          if (c !== cb && c.checked) {
+            c.checked = false;
+            return;
+          }
+        });
+      }
+      
+      // Enable/disable compare button
+      const currentChecked = modal.querySelectorAll('input[name="column"]:checked');
+      compareBtn.disabled = currentChecked.length !== 2;
+    });
+  });
+  
+  // Handle compare button click
+  compareBtn.addEventListener('click', () => {
+    const checked = Array.from(modal.querySelectorAll('input[name="column"]:checked'));
+    if (checked.length !== 2) return;
+    
+    const col1Index = parseInt(checked[0].value);
+    const col2Index = parseInt(checked[1].value);
+    
+    modal.remove();
+    performRowComparison(row, columns[col1Index], columns[col2Index]);
+  });
+  
+  // Handle cancel/close
+  const closeModal = () => modal.remove();
+  cancelBtn.addEventListener('click', closeModal);
+  closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+  
+  // Handle escape key
+  const handleEscape = (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+      document.removeEventListener('keydown', handleEscape);
+    }
+  };
+  document.addEventListener('keydown', handleEscape);
+}
+
+// Perform comparison from row with selected columns
+function performRowComparison(row, column1, column2) {
+  // Get row description
+  const descriptionCell = row.querySelector('td .label a, td .label span');
+  const description = descriptionCell ? descriptionCell.textContent.trim() : 'Unknown Account';
+  
+  // Build cell data objects similar to the existing flow
+  const cell1Data = {
+    description: description,
+    value: parseFloat(column1.cell.textContent.replace(/[^0-9.-]+/g, '')) || 0,
+    url: getDatasheetUrl(column1.cell),
+    columnType: column1.name,
+    cell: column1.cell
+  };
+  
+  const cell2Data = {
+    description: description,
+    value: parseFloat(column2.cell.textContent.replace(/[^0-9.-]+/g, '')) || 0,
+    url: getDatasheetUrl(column2.cell),
+    columnType: column2.name,
+    cell: column2.cell
+  };
+  
+  console.log('Row comparison - Cell 1:', cell1Data);
+  console.log('Row comparison - Cell 2:', cell2Data);
+  
+  // Show loading indicator
+  showComparisonLoadingIndicator();
+  
+  // Start AJAX-based data fetching (reuse existing function)
+  openDatasheetSequentially(cell1Data, cell2Data)
+    .then(comparisonData => {
+      hideComparisonLoadingIndicator();
+      showComparisonModal(comparisonData);
+      console.log('Row comparison completed successfully');
+    })
+    .catch(error => {
+      hideComparisonLoadingIndicator();
+      console.error('Row comparison error:', error);
+      const msg = error?.message || 'Unknown error';
+      if (msg.includes('Extension context invalidated')) {
+        alert('Comparison failed because Chrome discarded the extension context. Please reload the page and try again.');
+      } else {
+        alert('Error comparing datasheets: ' + msg);
+      }
+    });
+}
+
+// Inject compare button into a level 4 row
+function injectRowCompareButton(row) {
+  // Skip if already has a compare button
+  if (row.querySelector('.betterbudgyt-row-compare-btn')) return;
+  
+  // Check if row has at least 2 comparable columns
+  const columns = getAvailableColumns(row);
+  if (columns.length < 2) return;
+  
+  // Find the description cell (first td with the label)
+  const descriptionCell = row.querySelector('td[style*="z-index: 1"]');
+  if (!descriptionCell) return;
+  
+  // Find the row-icons div or the label div to append to
+  let targetContainer = descriptionCell.querySelector('.row-icons');
+  if (!targetContainer) {
+    targetContainer = descriptionCell.querySelector('.label');
+  }
+  if (!targetContainer) return;
+  
+  // Create compare button
+  const compareBtn = document.createElement('a');
+  compareBtn.href = 'javascript:void(0)';
+  compareBtn.className = 'betterbudgyt-row-compare-btn';
+  compareBtn.title = 'Compare datasheets';
+  compareBtn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7"></rect>
+      <rect x="14" y="3" width="7" height="7"></rect>
+      <rect x="14" y="14" width="7" height="7"></rect>
+      <rect x="3" y="14" width="7" height="7"></rect>
+    </svg>
+  `;
+  
+  // Add click handler
+  compareBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showColumnSelectorModal(row);
+  });
+  
+  // Insert button
+  if (targetContainer.classList.contains('row-icons')) {
+    targetContainer.insertBefore(compareBtn, targetContainer.firstChild);
+  } else {
+    // Create row-icons container if it doesn't exist
+    const rowIcons = document.createElement('div');
+    rowIcons.className = 'row-icons';
+    rowIcons.appendChild(compareBtn);
+    targetContainer.appendChild(rowIcons);
+  }
+}
+
+// Setup observer to inject compare buttons into level 4 rows
+function setupRowCompareButtons() {
+  // Initial injection for existing rows
+  const level4Rows = document.querySelectorAll('tr.data-row[data-level="4"]');
+  level4Rows.forEach(row => injectRowCompareButton(row));
+  
+  // Observer for dynamically added rows
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          // Check if the added node is a level 4 row
+          if (node.matches && node.matches('tr.data-row[data-level="4"]')) {
+            injectRowCompareButton(node);
+          }
+          // Also check children
+          const childRows = node.querySelectorAll ? node.querySelectorAll('tr.data-row[data-level="4"]') : [];
+          childRows.forEach(row => injectRowCompareButton(row));
+        }
+      });
+    });
+  });
+  
+  // Observe the entire document for new rows
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+  
+  console.log('Row compare buttons setup complete');
+}
+
+// Initialize row compare buttons when on comparison page
+function initRowCompareButtons() {
+  // Check if we're on a P&L or comparison page
+  const isPnLPage = window.location.href.includes('comp-ytd') || 
+                    window.location.href.includes('comparison') ||
+                    document.querySelector('table.table.table-striped');
+  
+  if (isPnLPage) {
+    // Wait a bit for the table to load
+    setTimeout(() => {
+      setupRowCompareButtons();
+    }, 1000);
+  }
+}
+
+// Call init on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initRowCompareButtons);
+} else {
+  initRowCompareButtons();
+}
+
+// ===== END ROW HOVER COMPARE BUTTON FEATURE =====
+
 // Show loading indicator
 function showComparisonLoadingIndicator() {
   // Remove any existing loading indicator
