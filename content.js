@@ -3232,6 +3232,10 @@ function showComparisonModal(comparisonData) {
         expandedDepts.push(card.dataset.dept);
       });
       
+      // Remember current filter mode
+      const activeChip = modal.querySelector('.betterbudgyt-filter-chip.active');
+      const currentFilter = activeChip ? activeChip.dataset.filter : 'all';
+      
       const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
       tableContainer.innerHTML = generateComparisonTable(comparisonData, newHideMonths, false);
       
@@ -3244,6 +3248,26 @@ function showComparisonModal(comparisonData) {
           if (body) body.style.display = 'block';
         }
       });
+      
+      // Restore filter mode
+      if (currentFilter !== 'all') {
+        const grids = tableContainer.querySelectorAll('.betterbudgyt-transactions-grid');
+        grids.forEach(grid => {
+          const section1 = grid.querySelector('.betterbudgyt-transactions-section-1');
+          const section2 = grid.querySelector('.betterbudgyt-transactions-section-2');
+          
+          grid.style.gridTemplateColumns = '1fr';
+          grid.classList.add('single-column-mode');
+          
+          if (currentFilter === 'dataset1') {
+            if (section1) section1.style.display = '';
+            if (section2) section2.style.display = 'none';
+          } else if (currentFilter === 'dataset2') {
+            if (section1) section1.style.display = 'none';
+            if (section2) section2.style.display = '';
+          }
+        });
+      }
     });
     
     // Add event listener for close button
