@@ -1510,6 +1510,8 @@ function performComparison() {
   // Start AJAX-based data fetching
   openDatasheetSequentially(cell1Data, cell2Data)
     .then(comparisonData => {
+      // Store cell data for refresh functionality
+      comparisonData._refreshData = { cell1Data, cell2Data };
       hideComparisonLoadingIndicator();
       showComparisonModal(comparisonData);
       console.log('Comparison completed successfully');
@@ -1731,6 +1733,8 @@ function performRowComparison(row, column1, column2) {
     .then(comparisonData => {
       // Add account name to comparison data for display in modal header
       comparisonData.accountName = description;
+      // Store cell data for refresh functionality
+      comparisonData._refreshData = { cell1Data, cell2Data };
       hideComparisonLoadingIndicator();
       showComparisonModal(comparisonData);
       console.log('Row comparison completed successfully');
@@ -2932,9 +2936,39 @@ async function parseDatasheetHtml(responseText, departmentName) {
   return result;
 }
 
-// Cache for datasheet data - key is dataHref, value is { cellTotal, data, timestamp }
-const datasheetCache = new Map();
-const CACHE_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes max cache age
+// Cache for datasheet data - persisted to chrome.storage.local
+const CACHE_STORAGE_KEY = 'betterbudgyt_datasheet_cache';
+const CACHE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes max cache age
+
+// Helper to get cache from storage
+async function getDatasheetCache() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([CACHE_STORAGE_KEY], (result) => {
+      resolve(result[CACHE_STORAGE_KEY] || {});
+    });
+  });
+}
+
+// Helper to set cache in storage
+async function setDatasheetCache(cache) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache }, resolve);
+  });
+}
+
+// Helper to clear specific cache entry
+async function clearCacheEntry(cacheKey) {
+  const cache = await getDatasheetCache();
+  delete cache[cacheKey];
+  await setDatasheetCache(cache);
+  console.log(`Cleared cache for: ${cacheKey}`);
+}
+
+// Helper to clear all datasheet cache
+async function clearAllDatasheetCache() {
+  await setDatasheetCache({});
+  console.log('Cleared all datasheet cache');
+}
 
 // Open datasheets in parallel using AJAX (with caching)
 async function openDatasheetsParallel(cell1Data, cell2Data) {
@@ -2994,15 +3028,16 @@ async function openDatasheetsParallel(cell1Data, cell2Data) {
       }
     });
     
-    // Helper to fetch with caching
-    const fetchWithCache = async (ajaxParams, cellData, cellParams) => {
+    // Helper to fetch with caching (uses chrome.storage.local)
+    const fetchWithCache = async (ajaxParams, cellData, cellParams, forceRefresh = false) => {
       const cacheKey = cellParams.dataHref;
       const cellTotal = cellData.value; // The displayed value in the P&L cell
-      const cached = datasheetCache.get(cacheKey);
+      const cache = await getDatasheetCache();
+      const cached = cache[cacheKey];
       const now = Date.now();
       
-      // Check if cache is valid
-      if (cached) {
+      // Check if cache is valid (unless force refresh)
+      if (cached && !forceRefresh) {
         const isExpired = (now - cached.timestamp) > CACHE_MAX_AGE_MS;
         const totalMatches = Math.abs(cached.cellTotal - cellTotal) < 0.01;
         
@@ -3012,6 +3047,8 @@ async function openDatasheetsParallel(cell1Data, cell2Data) {
         } else {
           console.log(`✗ Cache MISS for ${cellData.description}: expired=${isExpired}, totalChanged=${!totalMatches} (cached: ${cached.cellTotal}, current: ${cellTotal})`);
         }
+      } else if (forceRefresh) {
+        console.log(`🔄 Force refresh for ${cellData.description} (${cellData.columnType})`);
       } else {
         console.log(`✗ Cache MISS for ${cellData.description}: no cached data`);
       }
@@ -3024,12 +3061,13 @@ async function openDatasheetsParallel(cell1Data, cell2Data) {
         cellParams.dataHref
       );
       
-      // Cache the result
-      datasheetCache.set(cacheKey, {
+      // Cache the result to chrome.storage.local
+      cache[cacheKey] = {
         cellTotal: cellTotal,
         data: data,
         timestamp: now
-      });
+      };
+      await setDatasheetCache(cache);
       console.log(`Cached data for ${cellData.description} (key: ${cacheKey})`);
       
       return data;
@@ -3498,6 +3536,14 @@ function showComparisonModal(comparisonData) {
         <div class="betterbudgyt-comparison-modal-header">
           <h2>${headerTitle}</h2>
           <div class="betterbudgyt-comparison-modal-controls">
+            <button class="betterbudgyt-comparison-modal-refresh" title="Refresh data">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                <path d="M16 21h5v-5"></path>
+              </svg>
+            </button>
             <button class="betterbudgyt-comparison-modal-minimize" title="Minimize">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M5 12h14"></path>
@@ -3700,6 +3746,66 @@ function showComparisonModal(comparisonData) {
       modal.remove();
       cleanupMinimizedTabsContainer();
     });
+    
+    // Add event listener for refresh button
+    const refreshBtn = modal.querySelector('.betterbudgyt-comparison-modal-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        if (!comparisonData._refreshData) {
+          alert('Cannot refresh: original cell data not available');
+          return;
+        }
+        
+        const { cell1Data, cell2Data } = comparisonData._refreshData;
+        
+        // Add spinning animation
+        refreshBtn.classList.add('spinning');
+        refreshBtn.disabled = true;
+        
+        try {
+          // Clear cache for both datasheets
+          const cell1Params = extractCellParameters(cell1Data.cell);
+          const cell2Params = extractCellParameters(cell2Data.cell);
+          
+          if (cell1Params?.dataHref) await clearCacheEntry(cell1Params.dataHref);
+          if (cell2Params?.dataHref) await clearCacheEntry(cell2Params.dataHref);
+          
+          console.log('🔄 Force refreshing comparison data...');
+          
+          // Refetch data
+          const newComparisonData = await openDatasheetsParallel(cell1Data, cell2Data);
+          newComparisonData.accountName = comparisonData.accountName;
+          newComparisonData._refreshData = comparisonData._refreshData;
+          
+          // Update modal content
+          const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+          if (tableContainer) {
+            tableContainer.innerHTML = generateComparisonTable(newComparisonData, hideMonths);
+          }
+          
+          // Update summary cards
+          const newDataset1Total = newComparisonData.dataset1.grandTotals?.total || newComparisonData.dataset1.totals?.total || 0;
+          const newDataset2Total = newComparisonData.dataset2.grandTotals?.total || newComparisonData.dataset2.totals?.total || 0;
+          const newDifference = newDataset1Total - newDataset2Total;
+          
+          const summaryCards = modal.querySelectorAll('.betterbudgyt-summary-card-value');
+          if (summaryCards[0]) summaryCards[0].textContent = formatNumber(newDataset1Total);
+          if (summaryCards[1]) summaryCards[1].textContent = formatNumber(newDataset2Total);
+          if (summaryCards[2]) summaryCards[2].textContent = formatNumber(newDifference);
+          
+          // Update comparisonData reference for future operations
+          Object.assign(comparisonData, newComparisonData);
+          
+          console.log('✓ Comparison data refreshed successfully');
+        } catch (error) {
+          console.error('Refresh error:', error);
+          alert('Failed to refresh: ' + (error.message || 'Unknown error'));
+        } finally {
+          refreshBtn.classList.remove('spinning');
+          refreshBtn.disabled = false;
+        }
+      });
+    }
     
     // Add event listener for minimize button
     modal.querySelector('.betterbudgyt-comparison-modal-minimize').addEventListener('click', () => {

@@ -330,6 +330,36 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   gap: 8px;
 }
 
+/* Refresh Button */
+.betterbudgyt-comparison-modal-refresh {
+  background: #10b981;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.betterbudgyt-comparison-modal-refresh:hover {
+  background: #059669;
+  transform: scale(1.1);
+}
+
+.betterbudgyt-comparison-modal-refresh:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.betterbudgyt-comparison-modal-refresh.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
 /* Minimize Button */
 .betterbudgyt-comparison-modal-minimize {
   background: #64748b;
