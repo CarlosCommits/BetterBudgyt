@@ -3356,30 +3356,6 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
     `;
   });
   
-  // Add grand totals card
-  const grandVariance = dataset1Total - dataset2Total;
-  const grandVarianceClass = grandVariance > 0 ? 'positive' : grandVariance < 0 ? 'negative' : 'zero';
-  
-  tableHtml += `
-    <div class="betterbudgyt-grand-totals-card">
-      <div class="betterbudgyt-grand-totals-header">Grand Totals</div>
-      <div class="betterbudgyt-grand-totals-row">
-        <div class="betterbudgyt-grand-total betterbudgyt-grand-total-1">
-          <span class="betterbudgyt-grand-label">${comparisonData.dataset1.dataType}</span>
-          <span class="betterbudgyt-grand-value">${formatNumber(dataset1Total)}</span>
-        </div>
-        <div class="betterbudgyt-grand-total betterbudgyt-grand-total-2">
-          <span class="betterbudgyt-grand-label">${comparisonData.dataset2.dataType}</span>
-          <span class="betterbudgyt-grand-value">${formatNumber(dataset2Total)}</span>
-        </div>
-        <div class="betterbudgyt-grand-total betterbudgyt-grand-variance ${grandVarianceClass}">
-          <span class="betterbudgyt-grand-label">Variance</span>
-          <span class="betterbudgyt-grand-value">${formatNumber(grandVariance)}</span>
-        </div>
-      </div>
-    </div>
-  `;
-  
   tableHtml += `</div>`;
   
   return tableHtml;
