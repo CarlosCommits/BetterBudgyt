@@ -374,60 +374,60 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   flex: 1;
 }
 
-/* Summary Cards */
+/* Summary Cards - Compact */
 .betterbudgyt-comparison-summary-section {
-  padding: 16px 24px;
+  padding: 12px 24px;
   background: #f1f5f9;
   border-bottom: 1px solid #e2e8f0;
 }
 
 .betterbudgyt-comparison-summary-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  display: flex;
+  gap: 12px;
 }
 
 .betterbudgyt-summary-card {
   background: #fff;
-  border-radius: 12px;
-  padding: 16px 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 10px 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .betterbudgyt-summary-card-dataset1 {
-  border-left: 4px solid #3b82f6;
+  border-left: 3px solid #3b82f6;
 }
 
 .betterbudgyt-summary-card-dataset2 {
-  border-left: 4px solid #22c55e;
+  border-left: 3px solid #22c55e;
 }
 
 .betterbudgyt-summary-card-diff {
-  border-left: 4px solid #f59e0b;
+  border-left: 3px solid #f59e0b;
   background: linear-gradient(90deg, #fffbeb 0%, #fff 100%);
 }
 
 .betterbudgyt-summary-card-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 4px;
+  letter-spacing: 0.03em;
 }
 
 .betterbudgyt-summary-card-value {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   color: #1e293b;
   font-variant-numeric: tabular-nums;
 }
 
 .betterbudgyt-summary-card-subtitle {
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
-  margin-top: 4px;
 }
 
 /* Search & Filter Bar */
@@ -784,71 +784,6 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   text-align: center;
   color: #94a3b8;
   font-size: 13px;
-}
-
-/* Grand Totals Card */
-.betterbudgyt-grand-totals-card {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  border-radius: 12px;
-  padding: 20px 24px;
-  margin-top: 8px;
-}
-
-.betterbudgyt-grand-totals-header {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #94a3b8;
-  margin-bottom: 12px;
-}
-
-.betterbudgyt-grand-totals-row {
-  display: flex;
-  gap: 32px;
-}
-
-.betterbudgyt-grand-total {
-  display: flex;
-  flex-direction: column;
-  min-width: 140px;
-}
-
-.betterbudgyt-grand-label {
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.betterbudgyt-grand-total-1 .betterbudgyt-grand-label {
-  color: #60a5fa;
-}
-
-.betterbudgyt-grand-total-2 .betterbudgyt-grand-label {
-  color: #4ade80;
-}
-
-.betterbudgyt-grand-variance .betterbudgyt-grand-label {
-  color: #94a3b8;
-}
-
-.betterbudgyt-grand-value {
-  font-size: 24px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: #fff;
-}
-
-.betterbudgyt-grand-variance.positive .betterbudgyt-grand-value {
-  color: #fca5a5;
-}
-
-.betterbudgyt-grand-variance.negative .betterbudgyt-grand-value {
-  color: #86efac;
-}
-
-.betterbudgyt-grand-variance.zero .betterbudgyt-grand-value {
-  color: #94a3b8;
 }
 
 /* Comparison info cards - hidden in new design */
