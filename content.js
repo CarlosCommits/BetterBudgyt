@@ -3158,6 +3158,15 @@ function showComparisonModal(comparisonData) {
     // Add to document
     document.body.appendChild(modal);
     
+    // Auto-expand if only one department
+    const deptCards = modal.querySelectorAll('.betterbudgyt-dept-card');
+    if (deptCards.length === 1) {
+      const card = deptCards[0];
+      card.classList.add('expanded');
+      const body = card.querySelector('.betterbudgyt-dept-card-body');
+      if (body) body.style.display = 'block';
+    }
+    
     // Setup search functionality for card-based layout
     const searchInput = modal.querySelector('#comparisonSearch');
     searchInput.addEventListener('input', (event) => {
