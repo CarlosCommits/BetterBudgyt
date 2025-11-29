@@ -336,7 +336,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   width: 44px;
   height: 24px;
   background: #cbd5e1;
-  border-radius: 12px;
+  border-radius: 999px !important;
   transition: all 0.3s;
 }
 
@@ -394,6 +394,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 .betterbudgyt-comparison-summary-cards {
   display: flex;
   gap: 12px;
+  width: 100%;
 }
 
 .betterbudgyt-summary-card {
@@ -405,14 +406,18 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0; /* Prevent overflow issues */
 }
 
 .betterbudgyt-summary-card-dataset1 {
   border-left: 3px solid #3b82f6;
+  background: linear-gradient(90deg, #eff6ff 0%, #fff 100%);
 }
 
 .betterbudgyt-summary-card-dataset2 {
   border-left: 3px solid #22c55e;
+  background: linear-gradient(90deg, #f0fdf4 0%, #fff 100%);
 }
 
 .betterbudgyt-summary-card-diff {
