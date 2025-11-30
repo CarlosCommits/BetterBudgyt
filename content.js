@@ -4612,9 +4612,19 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
     const d2Count = deptData.dataset2?.transactions?.length || 0;
     
     if (isSingleDepartment) {
-      // Single department - skip the card header, just show transactions directly
+      // Single department - show minimal header with just pop-out button
       tableHtml += `
-        <div class="betterbudgyt-dept-card betterbudgyt-single-dept" data-dept="${deptData.storeUID}">
+        <div class="betterbudgyt-dept-card betterbudgyt-single-dept expanded" data-dept="${deptData.storeUID}">
+          <div class="betterbudgyt-single-dept-header">
+            <span class="betterbudgyt-dept-name">${stripNumberPrefix(deptName)}</span>
+            <button class="betterbudgyt-dept-popout-btn" title="Open in new tab" data-dept="${deptData.storeUID}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </button>
+          </div>
           <div class="betterbudgyt-dept-card-body" style="display: block;">
             ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode - transactions hidden</div>'}
           </div>
