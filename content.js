@@ -118,7 +118,177 @@ document.addEventListener('click', (event) => {
       showNoteModal(desc, note);
     }
   }
+  
+  // Check for clickable comment cell click
+  const commentCell = event.target.closest('.clickable-comment');
+  if (commentCell) {
+    const plElementUID = commentCell.dataset.plElementUid;
+    const field = commentCell.dataset.field;
+    const desc = commentCell.dataset.desc;
+    if (plElementUID && field) {
+      event.stopPropagation();
+      fetchAndShowComment(plElementUID, field, desc);
+    }
+  }
 });
+
+// Fetch comment from Budgyt API and display it
+async function fetchAndShowComment(plElementUID, field, desc) {
+  // Map field names to API field values
+  const fieldMapping = {
+    'description': 'Description',
+    'vendor': 'Vendor',
+    'Apr': 'P1', 'May': 'P2', 'Jun': 'P3', 'Jul': 'P4',
+    'Aug': 'P5', 'Sep': 'P6', 'Oct': 'P7', 'Nov': 'P8',
+    'Dec': 'P9', 'Jan': 'P10', 'Feb': 'P11', 'Mar': 'P12'
+  };
+  
+  const apiField = fieldMapping[field] || field;
+  
+  // Show loading modal
+  showCommentModal(desc, field, '<div style="text-align: center; padding: 20px;"><i>Loading comment...</i></div>');
+  
+  try {
+    const response = await fetch('/Budget/GetUserComments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        PlElementUID: parseInt(plElementUID),
+        CommentDoneOnField: apiField
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch comment');
+    }
+    
+    const html = await response.text();
+    
+    // Parse the response HTML to extract comment content
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    // Extract comments from the specific structure:
+    // .comment-details > ul > li contains the main comment with author/date
+    // .comment-text contains the actual comment text
+    const comments = [];
+    const seenTexts = new Set();
+    
+    // Look for comment items in the expected structure
+    const commentItems = doc.querySelectorAll('.comment-details > ul > li');
+    
+    commentItems.forEach(item => {
+      const authorEl = item.querySelector('.commented-by');
+      const author = authorEl?.textContent?.trim();
+      
+      if (!author) return;
+      
+      const dateEl = item.querySelector('.commented-on');
+      let date = '';
+      if (dateEl) {
+        const dateStr = dateEl.getAttribute('data-datetimefromserver') || dateEl.textContent;
+        try {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            date = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+          } else {
+            date = dateEl.textContent?.trim() || '';
+          }
+        } catch (e) {
+          date = dateEl.textContent?.trim() || '';
+        }
+      }
+      
+      // Get text from .comment-text span
+      const textEl = item.querySelector('.comment-text');
+      const text = textEl?.textContent?.trim() || '';
+      
+      // Dedupe check
+      const dedupeKey = `${author}|${text}`;
+      if (seenTexts.has(dedupeKey)) return;
+      seenTexts.add(dedupeKey);
+      
+      if (author && text) {
+        comments.push({ author, date, text });
+      }
+    });
+    
+    // Build display HTML
+    let contentHtml = '';
+    if (comments.length > 0) {
+      comments.forEach(c => {
+        contentHtml += `
+          <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+            <div style="font-weight: 600; color: #1e293b;">${escapeHtml(c.author)}</div>
+            <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">${escapeHtml(c.date)}</div>
+            <div style="color: #334155;">${escapeHtml(c.text)}</div>
+          </div>
+        `;
+      });
+    } else {
+      contentHtml = '<i>No comments found</i>';
+    }
+    
+    // Update modal with content
+    const modalBody = document.querySelector('.betterbudgyt-comment-modal-body .betterbudgyt-comment-content');
+    if (modalBody) {
+      modalBody.innerHTML = contentHtml;
+    }
+  } catch (error) {
+    console.error('Error fetching comment:', error);
+    const modalBody = document.querySelector('.betterbudgyt-comment-modal-body .betterbudgyt-comment-content');
+    if (modalBody) {
+      modalBody.innerHTML = '<div style="color: #dc2626;">Failed to load comment. Please try again.</div>';
+    }
+  }
+}
+
+// Show comment modal
+function showCommentModal(desc, field, content) {
+  // Remove any existing modal
+  const existingModal = document.querySelector('.betterbudgyt-comment-modal-overlay');
+  if (existingModal) {
+    existingModal.remove();
+  }
+  
+  const fieldLabel = field === 'description' ? 'Description' : 
+                     field === 'vendor' ? 'Vendor' : 
+                     `${field} Value`;
+  
+  const overlay = document.createElement('div');
+  overlay.className = 'betterbudgyt-comment-modal-overlay';
+  overlay.innerHTML = `
+    <div class="betterbudgyt-comment-modal">
+      <div class="betterbudgyt-comment-modal-header">
+        <div class="betterbudgyt-comment-modal-title">💬 Comment on ${fieldLabel}</div>
+        <button class="betterbudgyt-comment-modal-close">&times;</button>
+      </div>
+      <div class="betterbudgyt-comment-modal-body">
+        <div class="betterbudgyt-comment-desc">${escapeHtml(desc)}</div>
+        <div class="betterbudgyt-comment-content">${content}</div>
+      </div>
+    </div>
+  `;
+  
+  // Close handlers
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.closest('.betterbudgyt-comment-modal-close')) {
+      overlay.remove();
+    }
+  });
+  
+  document.addEventListener('keydown', function escHandler(e) {
+    if (e.key === 'Escape') {
+      overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  });
+  
+  document.body.appendChild(overlay);
+}
 
 // Show month columns in DataInput view
 function showMonthColumns() {
@@ -3571,12 +3741,50 @@ function extractTransactionData(row) {
       }
     }
     
+    // Extract PLElementUID for comment API calls
+    let plElementUID = null;
+    const plElementCell = row.querySelector('td#hdnPLElementUID, td[id="hdnPLElementUID"]');
+    if (plElementCell) {
+      plElementUID = plElementCell.textContent.trim();
+    }
+    
+    // Extract comments - detect which cells have the hasComment class
+    const comments = {};
+    
+    // Check description cell for comment
+    const descCell = row.querySelector('td.hasComment:first-child, td:first-child.hasComment');
+    if (descCell) {
+      comments.description = true;
+    }
+    
+    // Check vendor cell for comment
+    const vendorCell = row.querySelector('td.vendorLst.hasComment, td.vendor-wrap.hasComment');
+    if (vendorCell) {
+      comments.vendor = true;
+    }
+    
+    // Check month cells for comments
+    const monthNames = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    monthNames.forEach((month, index) => {
+      const periodNum = index + 1;
+      const monthCell = row.querySelector(`td.data[data-period="P${periodNum}"].hasComment, td.DATValueM${periodNum}F.hasComment`);
+      if (monthCell) {
+        comments[month] = true;
+      }
+    });
+    
+    if (debugModeEnabled && Object.keys(comments).length > 0) {
+      console.log('Found comments on fields:', comments);
+    }
+    
     const result = {
       description,
       vendor,
       monthly,
       total,
-      note
+      note,
+      plElementUID,
+      comments
     };
     
     console.log('Extracted transaction:', result);
@@ -4482,6 +4690,92 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
           font-size: 10px;
           letter-spacing: -0.3px;
         }
+        /* Clickable comment cell styles */
+        .clickable-comment {
+          position: relative;
+          cursor: pointer;
+        }
+        .clickable-comment:hover {
+          background: #eff6ff !important;
+        }
+        .has-comment::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 0;
+          height: 0;
+          border-style: solid;
+          border-width: 0 10px 10px 0;
+          border-color: transparent #3b82f6 transparent transparent;
+          pointer-events: none;
+        }
+        /* Comment Modal Styles */
+        .betterbudgyt-comment-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10001;
+        }
+        .betterbudgyt-comment-modal {
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+          max-width: 500px;
+          width: 90%;
+          max-height: 80vh;
+          overflow: hidden;
+        }
+        .betterbudgyt-comment-modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 20px;
+          background: #eff6ff;
+          border-bottom: 1px solid #bfdbfe;
+        }
+        .betterbudgyt-comment-modal-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1e40af;
+        }
+        .betterbudgyt-comment-modal-close {
+          background: none;
+          border: none;
+          font-size: 24px;
+          color: #64748b;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 4px;
+          line-height: 1;
+        }
+        .betterbudgyt-comment-modal-close:hover {
+          background: #dbeafe;
+          color: #1e40af;
+        }
+        .betterbudgyt-comment-modal-body {
+          padding: 20px;
+          max-height: 60vh;
+          overflow-y: auto;
+        }
+        .betterbudgyt-comment-desc {
+          font-size: 13px;
+          color: #64748b;
+          margin-bottom: 12px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .betterbudgyt-comment-content {
+          font-size: 14px;
+          line-height: 1.6;
+          color: #1e293b;
+        }
       </style>
     </head>
     <body>
@@ -4615,7 +4909,7 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
           document.body.appendChild(overlay);
         }
         
-        // Click handler for note icons
+        // Click handler for note and comment icons
         document.addEventListener('click', (event) => {
           const noteIcon = event.target.closest('.betterbudgyt-note-icon');
           if (noteIcon) {
@@ -4626,7 +4920,90 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
               showNoteModal(desc, note);
             }
           }
+          
+          const commentCell = event.target.closest('.clickable-comment');
+          if (commentCell) {
+            const plElementUID = commentCell.dataset.plElementUid;
+            const field = commentCell.dataset.field;
+            const desc = commentCell.dataset.desc;
+            if (plElementUID && field) {
+              event.stopPropagation();
+              fetchAndShowComment(plElementUID, field, desc);
+            }
+          }
         });
+        
+        // Fetch and show comment
+        async function fetchAndShowComment(plElementUID, field, desc) {
+          const fieldMapping = {
+            'description': 'Description', 'vendor': 'Vendor',
+            'Apr': 'P1', 'May': 'P2', 'Jun': 'P3', 'Jul': 'P4',
+            'Aug': 'P5', 'Sep': 'P6', 'Oct': 'P7', 'Nov': 'P8',
+            'Dec': 'P9', 'Jan': 'P10', 'Feb': 'P11', 'Mar': 'P12'
+          };
+          const apiField = fieldMapping[field] || field;
+          showCommentModal(desc, field, '<div style="text-align:center;padding:20px;"><i>Loading...</i></div>');
+          try {
+            const response = await fetch('/Budget/GetUserComments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+              body: JSON.stringify({ PlElementUID: parseInt(plElementUID), CommentDoneOnField: apiField })
+            });
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            
+            // Parse comments from .comment-details > ul > li structure
+            const comments = [];
+            doc.querySelectorAll('.comment-details > ul > li').forEach(item => {
+              const author = item.querySelector('.commented-by')?.textContent?.trim();
+              if (!author) return;
+              const dateEl = item.querySelector('.commented-on');
+              let date = dateEl?.textContent?.trim() || '';
+              if (dateEl?.getAttribute('data-datetimefromserver')) {
+                try {
+                  const d = new Date(dateEl.getAttribute('data-datetimefromserver'));
+                  if (!isNaN(d.getTime())) date = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+                } catch(e) {}
+              }
+              const text = item.querySelector('.comment-text')?.textContent?.trim() || '';
+              if (author && text) comments.push({ author, date, text });
+            });
+            
+            let contentHtml = comments.length > 0 ? comments.map(c => 
+              '<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e2e8f0;">' +
+              '<div style="font-weight:600;color:#1e293b;">' + escapeForModal(c.author) + '</div>' +
+              '<div style="font-size:11px;color:#64748b;margin-bottom:6px;">' + escapeForModal(c.date) + '</div>' +
+              '<div style="color:#334155;">' + escapeForModal(c.text) + '</div></div>'
+            ).join('') : '<i>No comments found</i>';
+            
+            const modalBody = document.querySelector('.betterbudgyt-comment-modal-body .betterbudgyt-comment-content');
+            if (modalBody) modalBody.innerHTML = contentHtml;
+          } catch (e) {
+            const modalBody = document.querySelector('.betterbudgyt-comment-modal-body .betterbudgyt-comment-content');
+            if (modalBody) modalBody.innerHTML = '<div style="color:#dc2626;">Failed to load comment.</div>';
+          }
+        }
+        
+        // Show comment modal
+        function showCommentModal(desc, field, content) {
+          const existing = document.querySelector('.betterbudgyt-comment-modal-overlay');
+          if (existing) existing.remove();
+          const fieldLabel = field === 'description' ? 'Description' : field === 'vendor' ? 'Vendor' : field + ' Value';
+          const overlay = document.createElement('div');
+          overlay.className = 'betterbudgyt-comment-modal-overlay';
+          overlay.innerHTML = '<div class="betterbudgyt-comment-modal">' +
+            '<div class="betterbudgyt-comment-modal-header"><div class="betterbudgyt-comment-modal-title">💬 Comment on ' + fieldLabel + '</div>' +
+            '<button class="betterbudgyt-comment-modal-close">&times;</button></div>' +
+            '<div class="betterbudgyt-comment-modal-body"><div class="betterbudgyt-comment-desc">' + escapeForModal(desc) + '</div>' +
+            '<div class="betterbudgyt-comment-content">' + content + '</div></div></div>';
+          overlay.addEventListener('click', (e) => {
+            if (e.target === overlay || e.target.closest('.betterbudgyt-comment-modal-close')) overlay.remove();
+          });
+          document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+          });
+          document.body.appendChild(overlay);
+        }
         
         // Generate transactions HTML
         function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
@@ -4649,12 +5026,16 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
             html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
             deptData.dataset1.transactions.forEach(t => {
               const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
-              html += '<tr' + (t.note ? ' class="has-note"' : '') + '><td class="betterbudgyt-mini-desc">' + noteIcon + (t.description || 'No Description') + '</td>';
-              html += '<td class="betterbudgyt-mini-vendor">' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
+              const descHasComment = t.comments?.description && t.plElementUID;
+              const vendorHasComment = t.comments?.vendor && t.plElementUID;
+              html += '<tr' + (t.note ? ' class="has-note"' : '') + '>';
+              html += '<td class="betterbudgyt-mini-desc' + (descHasComment ? ' has-comment clickable-comment' : '') + '"' + (descHasComment ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="description" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '') + '>' + noteIcon + (t.description || 'No Description') + '</td>';
+              html += '<td class="betterbudgyt-mini-vendor' + (vendorHasComment ? ' has-comment clickable-comment' : '') + '"' + (vendorHasComment ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="vendor" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '') + '>' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
               if (!hideMonths) months.forEach(m => {
                 const val = Math.abs(t.monthly?.[m] || 0);
                 const isCompact = val >= 10000;
-                html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + '">' + formatNumber(t.monthly?.[m] || 0) + '</td>';
+                const hasComment = t.comments?.[m] && t.plElementUID;
+                html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + (hasComment ? ' has-comment clickable-comment' : '') + '"' + (hasComment ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="' + m + '" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '') + '>' + formatNumber(t.monthly?.[m] || 0) + '</td>';
               });
               html += '<td class="betterbudgyt-mini-total">' + formatNumber(t.total || 0) + '</td></tr>';
             });
@@ -4670,12 +5051,16 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
             html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
             deptData.dataset2.transactions.forEach(t => {
               const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
-              html += '<tr' + (t.note ? ' class="has-note"' : '') + '><td class="betterbudgyt-mini-desc">' + noteIcon + (t.description || 'No Description') + '</td>';
-              html += '<td class="betterbudgyt-mini-vendor">' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
+              const descHasComment = t.comments?.description && t.plElementUID;
+              const vendorHasComment = t.comments?.vendor && t.plElementUID;
+              html += '<tr' + (t.note ? ' class="has-note"' : '') + '>';
+              html += '<td class="betterbudgyt-mini-desc' + (descHasComment ? ' has-comment clickable-comment' : '') + '"' + (descHasComment ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="description" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '') + '>' + noteIcon + (t.description || 'No Description') + '</td>';
+              html += '<td class="betterbudgyt-mini-vendor' + (vendorHasComment ? ' has-comment clickable-comment' : '') + '"' + (vendorHasComment ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="vendor" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '') + '>' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
               if (!hideMonths) months.forEach(m => {
                 const val = Math.abs(t.monthly?.[m] || 0);
                 const isCompact = val >= 10000;
-                html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + '">' + formatNumber(t.monthly?.[m] || 0) + '</td>';
+                const hasComment = t.comments?.[m] && t.plElementUID;
+                html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + (hasComment ? ' has-comment clickable-comment' : '') + '"' + (hasComment ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="' + m + '" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '') + '>' + formatNumber(t.monthly?.[m] || 0) + '</td>';
               });
               html += '<td class="betterbudgyt-mini-total">' + formatNumber(t.total || 0) + '</td></tr>';
             });
@@ -5200,14 +5585,17 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
     `;
     deptData.dataset1.transactions.forEach(t => {
       const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
+      const descHasComment = t.comments?.description && t.plElementUID;
+      const vendorHasComment = t.comments?.vendor && t.plElementUID;
       html += `
         <tr${t.note ? ' class="has-note"' : ''}>
-          <td class="betterbudgyt-mini-desc">${noteIcon}${t.description || 'No Description'}</td>
-          <td class="betterbudgyt-mini-vendor">${stripNumberPrefix(t.vendor) || '-'}</td>
+          <td class="betterbudgyt-mini-desc${descHasComment ? ' has-comment clickable-comment' : ''}"${descHasComment ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : ''}>${noteIcon}${t.description || 'No Description'}</td>
+          <td class="betterbudgyt-mini-vendor${vendorHasComment ? ' has-comment clickable-comment' : ''}"${vendorHasComment ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : ''}>${stripNumberPrefix(t.vendor) || '-'}</td>
           ${hideMonths ? '' : months.map(m => {
             const val = Math.abs(t.monthly?.[m] || 0);
             const isCompact = val >= 10000;
-            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}">${formatNumber(t.monthly?.[m] || 0)}</td>`;
+            const hasComment = t.comments?.[m] && t.plElementUID;
+            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}${hasComment ? ' has-comment clickable-comment' : ''}"${hasComment ? ` data-pl-element-uid="${t.plElementUID}" data-field="${m}" data-desc="${escapeHtml(t.description || 'No Description')}"` : ''}>${formatNumber(t.monthly?.[m] || 0)}</td>`;
           }).join('')}
           <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
         </tr>
@@ -5240,14 +5628,17 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
     `;
     deptData.dataset2.transactions.forEach(t => {
       const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
+      const descHasComment = t.comments?.description && t.plElementUID;
+      const vendorHasComment = t.comments?.vendor && t.plElementUID;
       html += `
         <tr${t.note ? ' class="has-note"' : ''}>
-          <td class="betterbudgyt-mini-desc">${noteIcon}${t.description || 'No Description'}</td>
-          <td class="betterbudgyt-mini-vendor">${stripNumberPrefix(t.vendor) || '-'}</td>
+          <td class="betterbudgyt-mini-desc${descHasComment ? ' has-comment clickable-comment' : ''}"${descHasComment ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : ''}>${noteIcon}${t.description || 'No Description'}</td>
+          <td class="betterbudgyt-mini-vendor${vendorHasComment ? ' has-comment clickable-comment' : ''}"${vendorHasComment ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : ''}>${stripNumberPrefix(t.vendor) || '-'}</td>
           ${hideMonths ? '' : months.map(m => {
             const val = Math.abs(t.monthly?.[m] || 0);
             const isCompact = val >= 10000;
-            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}">${formatNumber(t.monthly?.[m] || 0)}</td>`;
+            const hasComment = t.comments?.[m] && t.plElementUID;
+            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}${hasComment ? ' has-comment clickable-comment' : ''}"${hasComment ? ` data-pl-element-uid="${t.plElementUID}" data-field="${m}" data-desc="${escapeHtml(t.description || 'No Description')}"` : ''}>${formatNumber(t.monthly?.[m] || 0)}</td>`;
           }).join('')}
           <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
         </tr>
