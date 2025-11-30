@@ -3592,12 +3592,16 @@ function showComparisonModal(comparisonData) {
           
           <!-- Search & Filter Toolbar -->
           <div class="betterbudgyt-comparison-toolbar">
-            <div class="betterbudgyt-search-container">
-              <svg class="betterbudgyt-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-              </svg>
-              <input type="text" class="betterbudgyt-search-input" id="comparisonSearch" placeholder="Search departments, descriptions, vendors...">
+            <div class="betterbudgyt-search-wrapper">
+              <div class="betterbudgyt-search-container">
+                <svg class="betterbudgyt-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" class="betterbudgyt-search-input" id="comparisonSearch" placeholder="Search departments, descriptions, vendors...">
+                <button class="betterbudgyt-search-clear" type="button" title="Clear search" style="display: none;">&times;</button>
+              </div>
+              <span class="betterbudgyt-search-counter" style="display: none;"></span>
             </div>
             <div class="betterbudgyt-filter-chips">
               <button class="betterbudgyt-filter-chip active" data-filter="all">All</button>
@@ -3632,17 +3636,173 @@ function showComparisonModal(comparisonData) {
       if (body) body.style.display = 'block';
     }
     
-    // Setup search functionality for card-based layout
+    // Setup search functionality for card-based layout with highlighting
     const searchInput = modal.querySelector('#comparisonSearch');
+    let currentMatchIndex = 0;
+    let allMatches = [];
+    
+    // Helper to clear all highlights
+    const clearHighlights = () => {
+      modal.querySelectorAll('.betterbudgyt-search-highlight').forEach(el => {
+        const parent = el.parentNode;
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+        parent.normalize(); // Merge adjacent text nodes
+      });
+      allMatches = [];
+      currentMatchIndex = 0;
+    };
+    
+    // Helper to highlight text in an element
+    const highlightText = (element, searchTerm) => {
+      if (!searchTerm || !element) return;
+      
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+      const textNodes = [];
+      let node;
+      while (node = walker.nextNode()) {
+        if (node.textContent.toLowerCase().includes(searchTerm.toLowerCase())) {
+          textNodes.push(node);
+        }
+      }
+      
+      textNodes.forEach(textNode => {
+        const text = textNode.textContent;
+        const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        const parts = text.split(regex);
+        
+        if (parts.length > 1) {
+          const fragment = document.createDocumentFragment();
+          parts.forEach(part => {
+            if (part.toLowerCase() === searchTerm.toLowerCase()) {
+              const mark = document.createElement('mark');
+              mark.className = 'betterbudgyt-search-highlight';
+              mark.textContent = part;
+              fragment.appendChild(mark);
+              allMatches.push(mark);
+            } else {
+              fragment.appendChild(document.createTextNode(part));
+            }
+          });
+          textNode.parentNode.replaceChild(fragment, textNode);
+        }
+      });
+    };
+    
+    // Helper to scroll to and focus a match
+    const scrollToMatch = (index) => {
+      if (allMatches.length === 0) return;
+      
+      // Remove current highlight from all
+      allMatches.forEach(m => m.classList.remove('current'));
+      
+      // Wrap index
+      currentMatchIndex = ((index % allMatches.length) + allMatches.length) % allMatches.length;
+      
+      const match = allMatches[currentMatchIndex];
+      if (match) {
+        match.classList.add('current');
+        
+        // Expand parent card if collapsed
+        const card = match.closest('.betterbudgyt-dept-card');
+        if (card && !card.classList.contains('expanded')) {
+          card.classList.add('expanded');
+          const body = card.querySelector('.betterbudgyt-dept-card-body');
+          if (body) body.style.display = 'block';
+          const btn = card.querySelector('.betterbudgyt-dept-expand-btn');
+          if (btn) btn.textContent = '▼';
+        }
+        
+        // Scroll into view
+        match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Update counter
+        updateMatchCounter();
+      }
+    };
+    
+    // Get the counter and clear button elements
+    const searchCounter = modal.querySelector('.betterbudgyt-search-counter');
+    const clearBtn = modal.querySelector('.betterbudgyt-search-clear');
+    
+    // Helper to update match counter display
+    const updateMatchCounter = () => {
+      if (allMatches.length > 0) {
+        searchCounter.textContent = `${currentMatchIndex + 1} of ${allMatches.length}`;
+        searchCounter.style.display = '';
+      } else if (searchInput.value.trim()) {
+        searchCounter.textContent = 'No matches';
+        searchCounter.style.display = '';
+      } else {
+        searchCounter.style.display = 'none';
+      }
+    };
+    
+    // Helper to update clear button visibility
+    const updateClearButton = () => {
+      clearBtn.style.display = searchInput.value.trim() ? '' : 'none';
+    };
+    
+    // Clear button click handler
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearHighlights();
+      const cards = modal.querySelectorAll('.betterbudgyt-dept-card');
+      cards.forEach(card => card.style.display = '');
+      updateMatchCounter();
+      updateClearButton();
+      searchInput.focus();
+    });
+    
+    // Search input handler
     searchInput.addEventListener('input', (event) => {
-      const searchTerm = event.target.value.toLowerCase();
+      const searchTerm = event.target.value.trim();
+      
+      // Update clear button visibility
+      updateClearButton();
+      
+      // Clear previous highlights
+      clearHighlights();
+      
       const cards = modal.querySelectorAll('.betterbudgyt-dept-card');
       
+      if (searchTerm === '') {
+        // Show all cards when search is empty
+        cards.forEach(card => card.style.display = '');
+        updateMatchCounter();
+        return;
+      }
+      
+      // Filter cards and highlight matches
       cards.forEach(card => {
         const text = card.textContent.toLowerCase();
-        const matches = searchTerm === '' || text.includes(searchTerm);
+        const matches = text.includes(searchTerm.toLowerCase());
         card.style.display = matches ? '' : 'none';
+        
+        if (matches) {
+          // Highlight in table cells (description, vendor)
+          card.querySelectorAll('.betterbudgyt-mini-desc, .betterbudgyt-mini-vendor, .betterbudgyt-dept-name').forEach(cell => {
+            highlightText(cell, searchTerm);
+          });
+        }
       });
+      
+      // Scroll to first match
+      if (allMatches.length > 0) {
+        scrollToMatch(0);
+      }
+      updateMatchCounter();
+    });
+    
+    // Add keyboard navigation for search (Enter = next, Shift+Enter = prev)
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          scrollToMatch(currentMatchIndex - 1);
+        } else {
+          scrollToMatch(currentMatchIndex + 1);
+        }
+      }
     });
     
     // Filter chips control layout: All = 2 columns, Actuals/Budget = single column full width
