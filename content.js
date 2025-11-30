@@ -3233,16 +3233,58 @@ const CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days cache
 async function getDatasheetCache() {
   return new Promise((resolve) => {
     chrome.storage.local.get([CACHE_STORAGE_KEY], (result) => {
-      resolve(result[CACHE_STORAGE_KEY] || {});
+      const cache = result[CACHE_STORAGE_KEY] || {};
+      const entryCount = Object.keys(cache).length;
+      console.log(`📂 Loaded cache: ${entryCount} entries, keys:`, Object.keys(cache).map(k => k.substring(0, 50) + '...'));
+      resolve(cache);
     });
   });
 }
 
 // Helper to set cache in storage
 async function setDatasheetCache(cache) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache }, resolve);
+  return new Promise((resolve, reject) => {
+    // Log cache size for debugging
+    const cacheStr = JSON.stringify(cache);
+    const cacheSizeKB = (cacheStr.length / 1024).toFixed(1);
+    const entryCount = Object.keys(cache).length;
+    console.log(`💾 Saving cache: ${entryCount} entries, ${cacheSizeKB} KB`);
+    
+    chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('❌ Cache storage failed:', chrome.runtime.lastError.message);
+        // If quota exceeded, try to prune old entries
+        if (chrome.runtime.lastError.message.includes('QUOTA')) {
+          console.warn('Storage quota exceeded, pruning oldest cache entries...');
+          pruneOldestCacheEntries(cache, 5);
+        }
+        resolve(); // Still resolve to not break flow
+      } else {
+        resolve();
+      }
+    });
   });
+}
+
+// Prune oldest cache entries to free up space
+async function pruneOldestCacheEntries(cache, countToRemove) {
+  const entries = Object.entries(cache);
+  if (entries.length <= countToRemove) {
+    await setDatasheetCache({});
+    return;
+  }
+  
+  // Sort by timestamp (oldest first)
+  entries.sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+  
+  // Remove oldest entries
+  const toRemove = entries.slice(0, countToRemove);
+  toRemove.forEach(([key]) => {
+    console.log(`Pruning old cache entry: ${key}`);
+    delete cache[key];
+  });
+  
+  await setDatasheetCache(cache);
 }
 
 // Helper to clear specific cache entry
@@ -3319,7 +3361,9 @@ async function openDatasheetsParallel(cell1Data, cell2Data) {
     
     // Helper to fetch with caching (uses chrome.storage.local)
     const fetchWithCache = async (ajaxParams, cellData, cellParams, forceRefresh = false) => {
-      const cacheKey = cellParams.dataHref;
+      // Cache key must include account identifier (groupedcategory) + scenario (dataHref)
+      // Otherwise different accounts in same scenario overwrite each other
+      const cacheKey = `${cellParams.dataHref}|${ajaxParams.groupedcategory}`;
       const cellTotal = cellData.value; // The displayed value in the P&L cell
       const cache = await getDatasheetCache();
       const cached = cache[cacheKey];
