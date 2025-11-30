@@ -115,7 +115,9 @@ document.addEventListener('click', (event) => {
     const desc = noteIcon.dataset.desc;
     if (note) {
       event.stopPropagation();
+      event.preventDefault();
       showNoteModal(desc, note);
+      return; // Don't process comment click
     }
   }
   
@@ -3701,6 +3703,8 @@ function extractTransactionData(row) {
           noteText = stripDiv.textContent || stripDiv.innerText || '';
           noteText = noteText.trim();
         }
+        // Remove leading colon and whitespace (common in Budgyt notes)
+        noteText = noteText.replace(/^:\s*/, '');
         
         // Get actual author from modifiedByUserNameDiv instead of the note content
         // The note content often shows "Budgyt Support" as a default
@@ -4680,10 +4684,10 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
           opacity: 1;
         }
         .betterbudgyt-mini-table tr.has-note {
-          background: #faf5ff !important;
+          background: #fefce8 !important;
         }
         .betterbudgyt-mini-table tr.has-note:hover {
-          background: #f3e8ff !important;
+          background: #fef9c3 !important;
         }
         /* Compact values for 5+ digit numbers */
         .betterbudgyt-mini-value.compact-value {
@@ -4917,7 +4921,9 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
             const desc = noteIcon.dataset.desc;
             if (note) {
               event.stopPropagation();
+              event.preventDefault();
               showNoteModal(desc, note);
+              return; // Don't process comment click
             }
           }
           
