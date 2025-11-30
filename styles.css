@@ -1139,13 +1139,13 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   transform: scale(1.15);
 }
 
-/* Highlight rows with notes - light purple to distinguish from variance (yellow) */
+/* Highlight rows with notes */
 .betterbudgyt-mini-table tr.has-note {
-  background: #faf5ff !important; /* purple-50 */
+  background: #fefce8 !important; /* yellow-50 */
 }
 
 .betterbudgyt-mini-table tr.has-note:hover {
-  background: #f3e8ff !important; /* purple-100 */
+  background: #fef9c3 !important; /* yellow-100 */
 }
 
 /* Note Modal Styles */
