@@ -595,10 +595,19 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   gap: 16px;
 }
 
+.betterbudgyt-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 500px;
+}
+
 .betterbudgyt-search-container {
   position: relative;
   flex: 1;
-  max-width: 400px;
+  display: flex;
+  align-items: center;
 }
 
 .betterbudgyt-search-icon {
@@ -612,7 +621,7 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 .betterbudgyt-search-input {
   width: 100%;
-  padding: 6px 12px 6px 36px;
+  padding: 6px 32px 6px 36px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
@@ -630,6 +639,31 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 .betterbudgyt-search-input::placeholder {
   color: #94a3b8;
+}
+
+.betterbudgyt-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #94a3b8;
+  border: none;
+  color: #fff;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s;
+}
+
+.betterbudgyt-search-clear:hover {
+  background: #64748b;
 }
 
 .betterbudgyt-filter-chips {
@@ -1429,4 +1463,27 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 .betterbudgyt-column-selector-btn-compare:disabled {
     background: #94a3b8;
     cursor: not-allowed;
+}
+
+/* Search Highlight Styles */
+.betterbudgyt-search-highlight {
+  background-color: #fef08a;
+  color: #000;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.betterbudgyt-search-highlight.current {
+  background-color: #f97316;
+  color: #fff;
+  box-shadow: 0 0 0 2px #f97316, 0 0 8px rgba(249, 115, 22, 0.5);
+}
+
+/* Search Counter */
+.betterbudgyt-search-counter {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
