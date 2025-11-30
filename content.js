@@ -1,3 +1,32 @@
+// Check if extension context is still valid
+function isExtensionContextValid() {
+  try {
+    // This will throw if the extension context is invalidated
+    return chrome.runtime && chrome.runtime.id;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Safely call chrome.storage.sync.get with error handling
+function safeStorageGet(keys, callback) {
+  if (!isExtensionContextValid()) {
+    console.log('Extension context invalidated - skipping storage call');
+    return;
+  }
+  try {
+    chrome.storage.sync.get(keys, (result) => {
+      if (chrome.runtime.lastError) {
+        console.log('Storage error:', chrome.runtime.lastError.message);
+        return;
+      }
+      callback(result);
+    });
+  } catch (e) {
+    console.log('Extension context invalidated:', e.message);
+  }
+}
+
 // Format number with commas, no unnecessary decimals
 function formatNumber(number) {
   const num = Number(number);
@@ -694,7 +723,7 @@ function getPercentageHue(percent) {
 
 // Apply color gradient to percentage cells
 function updatePercentageColors() {
-  chrome.storage.sync.get({ colorGradientEnabled: true }, ({ colorGradientEnabled }) => {
+  safeStorageGet({ colorGradientEnabled: true }, ({ colorGradientEnabled }) => {
     const percentageCells = document.querySelectorAll([
       ...percentageSelectors.percentage1,
       ...percentageSelectors.percentage2
@@ -4796,7 +4825,7 @@ const observer = new MutationObserver((mutations) => {
       await updateVarianceHeaders();
       
       // Check if we should apply compact view when table content changes
-      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      safeStorageGet({ showTotalOnlyEnabled: false }, (settings) => {
         if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
           console.log('Table mutation detected - applying compact view');
           hideMonthColumns();
@@ -5035,7 +5064,7 @@ function setupUrlChangeDetection() {
       lastUrl = window.location.href;
       
       // Check if we should apply compact view
-      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      safeStorageGet({ showTotalOnlyEnabled: false }, (settings) => {
         if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
           console.log('Show total only is enabled and we are on a datasheet page');
           applyCompactViewWithDelay();
@@ -5071,7 +5100,7 @@ function setupUrlChangeDetection() {
     const totalCells = document.querySelectorAll('td[title="Total"], th[title="Total"]');
     if (totalCells.length > 0) {
       console.log('Total cells detected in the table');
-      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      safeStorageGet({ showTotalOnlyEnabled: false }, (settings) => {
         if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
           console.log('Show total only is enabled and Total cells are present');
           hideMonthColumns();
@@ -5092,7 +5121,7 @@ function setupZoomDetection() {
   console.log('Setting up zoom detection');
   
   window.addEventListener('resize', () => {
-    chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+    safeStorageGet({ showTotalOnlyEnabled: false }, (settings) => {
       if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
         console.log('Zoom/resize detected - reapplying compact view');
         hideMonthColumns();
@@ -5102,7 +5131,7 @@ function setupZoomDetection() {
   
   // Add a periodic check to detect if month columns become visible when they shouldn't be
   setInterval(() => {
-    chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+    safeStorageGet({ showTotalOnlyEnabled: false }, (settings) => {
       if (settings.showTotalOnlyEnabled && isDatasheetPage()) {
         // Check if any month columns are visible when they shouldn't be
         const monthTitles = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
@@ -5137,7 +5166,7 @@ async function initializeAll() {
       initializeObserver();
       
       // Load "Show Total Only" setting on page load
-      chrome.storage.sync.get({ showTotalOnlyEnabled: false }, (settings) => {
+      safeStorageGet({ showTotalOnlyEnabled: false }, (settings) => {
         if (settings.showTotalOnlyEnabled) {
           if (isDataInputPage()) {
             console.log('Initial "Show Total Only" is enabled, hiding month columns.');
