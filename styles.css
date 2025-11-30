@@ -360,6 +360,26 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   animation: spin 1s linear infinite;
 }
 
+/* Export Button */
+.betterbudgyt-comparison-modal-export {
+  background: #059669;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.betterbudgyt-comparison-modal-export:hover {
+  background: #047857;
+  transform: scale(1.1);
+}
+
 /* Minimize Button */
 .betterbudgyt-comparison-modal-minimize {
   background: #64748b;

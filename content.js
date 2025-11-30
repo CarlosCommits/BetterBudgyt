@@ -3581,6 +3581,13 @@ function showComparisonModal(comparisonData) {
         <div class="betterbudgyt-comparison-modal-header">
           <h2>${headerTitle}</h2>
           <div class="betterbudgyt-comparison-modal-controls">
+            <button class="betterbudgyt-comparison-modal-export" title="Export to Excel">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            </button>
             <button class="betterbudgyt-comparison-modal-refresh" title="Refresh data">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -4009,6 +4016,21 @@ function showComparisonModal(comparisonData) {
           refreshBtn.classList.remove('spinning');
           refreshBtn.disabled = false;
         }
+      });
+    }
+    
+    // Add event listener for export button
+    const exportBtn = modal.querySelector('.betterbudgyt-comparison-modal-export');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        // Get current UI state
+        const hideMonthsToggle = modal.querySelector('#hideMonthsToggle');
+        const currentHideMonths = hideMonthsToggle ? hideMonthsToggle.checked : false;
+        
+        const activeChip = modal.querySelector('.betterbudgyt-filter-chip.active');
+        const currentFilter = activeChip ? activeChip.dataset.filter : 'all';
+        
+        exportComparisonToExcel(comparisonData, currentHideMonths, currentFilter);
       });
     }
     
@@ -4674,6 +4696,172 @@ function generateComparisonTable(comparisonData, hideMonths = false, classTotals
   tableHtml += `</div>`;
   
   return tableHtml;
+}
+
+// Export comparison data to Excel (real .xlsx format using SheetJS, with CSV fallback)
+async function exportComparisonToExcel(comparisonData, hideMonths = false, filterMode = 'all') {
+  const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+  const accountName = comparisonData.accountName || 'Comparison';
+  
+  // Determine which datasets to include based on filter
+  const includeDataset1 = filterMode === 'all' || filterMode === 'dataset1';
+  const includeDataset2 = filterMode === 'all' || filterMode === 'dataset2';
+  
+  // Build department map
+  const departmentMap = new Map();
+  (comparisonData.dataset1.departments || []).forEach(dept => {
+    const key = dept.departmentName || dept.storeUID;
+    departmentMap.set(key, { name: dept.departmentName, dataset1: dept, dataset2: null });
+  });
+  (comparisonData.dataset2.departments || []).forEach(dept => {
+    const key = dept.departmentName || dept.storeUID;
+    if (departmentMap.has(key)) {
+      departmentMap.get(key).dataset2 = dept;
+    } else {
+      departmentMap.set(key, { name: dept.departmentName, dataset1: null, dataset2: dept });
+    }
+  });
+  
+  // Build data rows
+  const baseHeaders = ['Department', 'Dataset', 'Description', 'Vendor'];
+  const monthHeaders = hideMonths ? [] : months;
+  const headers = [...baseHeaders, ...monthHeaders, 'Total'];
+  
+  const allRows = [];
+  allRows.push(headers);
+  
+  departmentMap.forEach((deptData, deptName) => {
+    // Dataset 1 transactions
+    if (includeDataset1 && deptData.dataset1?.transactions?.length > 0) {
+      deptData.dataset1.transactions.forEach(t => {
+        const row = [
+          stripNumberPrefix(deptName),
+          comparisonData.dataset1.dataType,
+          t.description || 'No Description',
+          stripNumberPrefix(t.vendor) || '-'
+        ];
+        if (!hideMonths) {
+          months.forEach(m => row.push(t.monthly?.[m] || 0));
+        }
+        row.push(t.total || 0);
+        allRows.push(row);
+      });
+    }
+    
+    // Dataset 2 transactions
+    if (includeDataset2 && deptData.dataset2?.transactions?.length > 0) {
+      deptData.dataset2.transactions.forEach(t => {
+        const row = [
+          stripNumberPrefix(deptName),
+          comparisonData.dataset2.dataType,
+          t.description || 'No Description',
+          stripNumberPrefix(t.vendor) || '-'
+        ];
+        if (!hideMonths) {
+          months.forEach(m => row.push(t.monthly?.[m] || 0));
+        }
+        row.push(t.total || 0);
+        allRows.push(row);
+      });
+    }
+  });
+  
+  // Try to load SheetJS for xlsx, fallback to CSV
+  let useXlsx = false;
+  if (!window.XLSX) {
+    try {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+      useXlsx = true;
+      console.log('SheetJS loaded successfully');
+    } catch (e) {
+      console.log('SheetJS not available, using CSV fallback');
+      useXlsx = false;
+    }
+  } else {
+    useXlsx = true;
+  }
+  
+  const filterSuffix = filterMode === 'all' ? '' : `_${filterMode === 'dataset1' ? 'actuals' : 'budget'}`;
+  const baseFilename = `comparison_${accountName.replace(/[^a-z0-9]/gi, '_')}${filterSuffix}_${new Date().toISOString().split('T')[0]}`;
+  
+  if (useXlsx && window.XLSX) {
+    // Use SheetJS for real Excel
+    const wb = XLSX.utils.book_new();
+    
+    // Summary sheet
+    const dataset1Total = comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0;
+    const dataset2Total = comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0;
+    const variance = dataset1Total - dataset2Total;
+    
+    const summaryData = [
+      ['Datasheet Comparison'],
+      ['Account', accountName],
+      ['Export Date', new Date().toLocaleDateString()],
+      [],
+      ['Summary']
+    ];
+    if (includeDataset1) summaryData.push([comparisonData.dataset1.dataType, dataset1Total]);
+    if (includeDataset2) summaryData.push([comparisonData.dataset2.dataType, dataset2Total]);
+    if (includeDataset1 && includeDataset2) summaryData.push(['Variance', variance]);
+    
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary');
+    
+    // Transactions sheet
+    const transSheet = XLSX.utils.aoa_to_sheet(allRows);
+    transSheet['!cols'] = headers.map((h, i) => ({ wch: Math.min(Math.max(h.length, 10), 40) }));
+    XLSX.utils.book_append_sheet(wb, transSheet, 'Transactions');
+    
+    // Department summary sheet
+    const deptHeaders = ['Department'];
+    if (includeDataset1) deptHeaders.push(comparisonData.dataset1.dataType);
+    if (includeDataset2) deptHeaders.push(comparisonData.dataset2.dataType);
+    if (includeDataset1 && includeDataset2) deptHeaders.push('Variance');
+    
+    const deptRows = [deptHeaders];
+    departmentMap.forEach((deptData, deptName) => {
+      const d1 = deptData.dataset1?.totals?.total || (deptData.dataset1?.transactions?.reduce((s,t) => s + (t.total||0), 0) || 0);
+      const d2 = deptData.dataset2?.totals?.total || (deptData.dataset2?.transactions?.reduce((s,t) => s + (t.total||0), 0) || 0);
+      const row = [stripNumberPrefix(deptName)];
+      if (includeDataset1) row.push(d1);
+      if (includeDataset2) row.push(d2);
+      if (includeDataset1 && includeDataset2) row.push(d1 - d2);
+      deptRows.push(row);
+    });
+    
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(deptRows), 'By Department');
+    
+    XLSX.writeFile(wb, `${baseFilename}.xlsx`);
+    console.log(`✓ Exported to Excel: ${baseFilename}.xlsx`);
+  } else {
+    // CSV fallback
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    
+    const csvContent = allRows.map(row => row.map(escapeCSV).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${baseFilename}.csv`;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    console.log(`✓ Exported to CSV: ${baseFilename}.csv`);
+  }
 }
 
 // Generate transaction details for a department
