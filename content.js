@@ -4565,6 +4565,13 @@ document.addEventListener('click', (event) => {
   const cell = event.target.closest('td');
   if (!cell) return; // Not a cell click
 
+  // Skip the account name/description cells (they have z-index: 1 and position: absolute)
+  // Only value cells (with classes like actual-budgetVal, compare-budgetVal) should be clickable
+  const cellStyle = cell.getAttribute('style') || '';
+  if (cellStyle.includes('z-index: 1') || cellStyle.includes('position: absolute')) {
+    return; // Don't handle clicks on account name cells
+  }
+
   // Check for interactive elements
   const hasExpander = cell.querySelector('.expander');
   const hasFormElements = cell.querySelector('input, select');
