@@ -3302,7 +3302,7 @@ async function clearAllDatasheetCache() {
 }
 
 // Open datasheets in parallel using AJAX (with caching)
-async function openDatasheetsParallel(cell1Data, cell2Data) {
+async function openDatasheetsParallel(cell1Data, cell2Data, forceRefresh = false) {
   // Create result object
   const comparisonData = {
     dataset1: {
@@ -3413,11 +3413,11 @@ async function openDatasheetsParallel(cell1Data, cell2Data) {
     
     // Fetch first dataset
     console.log('Fetching first datasheet:', cell1Data.description);
-    comparisonData.dataset1 = await fetchWithCache(ajaxParams1, cell1Data, cell1Params);
+    comparisonData.dataset1 = await fetchWithCache(ajaxParams1, cell1Data, cell1Params, forceRefresh);
     
     // Fetch second dataset
     console.log('Fetching second datasheet:', cell2Data.description);
-    comparisonData.dataset2 = await fetchWithCache(ajaxParams2, cell2Data, cell2Params);
+    comparisonData.dataset2 = await fetchWithCache(ajaxParams2, cell2Data, cell2Params, forceRefresh);
     
     const elapsed = performance.now() - startTime;
     console.log(`Both datasheets fetched in ${elapsed.toFixed(0)}ms`);
@@ -3431,8 +3431,8 @@ async function openDatasheetsParallel(cell1Data, cell2Data) {
 }
 
 // Legacy alias for backward compatibility
-async function openDatasheetSequentially(cell1Data, cell2Data) {
-  return openDatasheetsParallel(cell1Data, cell2Data);
+async function openDatasheetSequentially(cell1Data, cell2Data, forceRefresh = false) {
+  return openDatasheetsParallel(cell1Data, cell2Data, forceRefresh);
 }
 
 // Scrape datasheet data from document
@@ -4369,17 +4369,10 @@ function showComparisonModal(comparisonData) {
         refreshBtn.disabled = true;
         
         try {
-          // Clear cache for both datasheets
-          const cell1Params = extractCellParameters(cell1Data.cell);
-          const cell2Params = extractCellParameters(cell2Data.cell);
-          
-          if (cell1Params?.dataHref) await clearCacheEntry(cell1Params.dataHref);
-          if (cell2Params?.dataHref) await clearCacheEntry(cell2Params.dataHref);
-          
           console.log('🔄 Force refreshing comparison data...');
           
-          // Refetch data
-          const newComparisonData = await openDatasheetsParallel(cell1Data, cell2Data);
+          // Refetch data with forceRefresh=true to bypass cache
+          const newComparisonData = await openDatasheetsParallel(cell1Data, cell2Data, true);
           newComparisonData.accountName = comparisonData.accountName;
           newComparisonData._refreshData = comparisonData._refreshData;
           
