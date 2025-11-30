@@ -48,6 +48,78 @@ function stripNumberPrefix(name) {
   return name.replace(/^\d+\s*[-–]\s*/i, '').trim();
 }
 
+// Escape HTML special characters to prevent XSS in tooltips
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Show note in a modal
+function showNoteModal(description, note, targetDoc = document) {
+  // Remove any existing note modal
+  const existingModal = targetDoc.querySelector('.betterbudgyt-note-modal-overlay');
+  if (existingModal) existingModal.remove();
+  
+  // Parse note to extract user/date and content
+  // Format is typically: [Username Date] Note content
+  let author = '';
+  let noteContent = note;
+  const match = note.match(/^\[([^\]]+)\]\s*(.*)$/s);
+  if (match) {
+    author = match[1];
+    noteContent = match[2];
+  }
+  
+  const overlay = targetDoc.createElement('div');
+  overlay.className = 'betterbudgyt-note-modal-overlay';
+  overlay.innerHTML = `
+    <div class="betterbudgyt-note-modal">
+      <div class="betterbudgyt-note-modal-header">
+        <div class="betterbudgyt-note-modal-title">📝 Note</div>
+        <button class="betterbudgyt-note-modal-close">&times;</button>
+      </div>
+      <div class="betterbudgyt-note-modal-body">
+        <div class="betterbudgyt-note-modal-item"><strong>Item:</strong> ${escapeHtml(description)}</div>
+        ${author ? `<div class="betterbudgyt-note-modal-item"><strong>By:</strong> ${escapeHtml(author)}</div>` : ''}
+        <div class="betterbudgyt-note-modal-content">${escapeHtml(noteContent)}</div>
+      </div>
+    </div>
+  `;
+  
+  // Close on overlay click or close button
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.closest('.betterbudgyt-note-modal-close')) {
+      overlay.remove();
+    }
+  });
+  
+  // Close on Escape key
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      overlay.remove();
+      targetDoc.removeEventListener('keydown', escHandler);
+    }
+  };
+  targetDoc.addEventListener('keydown', escHandler);
+  
+  targetDoc.body.appendChild(overlay);
+}
+
+// Global click handler for note icons
+document.addEventListener('click', (event) => {
+  const noteIcon = event.target.closest('.betterbudgyt-note-icon');
+  if (noteIcon) {
+    const note = noteIcon.dataset.note;
+    const desc = noteIcon.dataset.desc;
+    if (note) {
+      event.stopPropagation();
+      showNoteModal(desc, note);
+    }
+  }
+});
+
 // Show month columns in DataInput view
 function showMonthColumns() {
   if (!isDatasheetPage()) return;
@@ -3434,11 +3506,77 @@ function extractTransactionData(row) {
       }
     }
     
+    // Extract note from hdnComment hidden field
+    let note = '';
+    const commentCell = row.querySelector('td#hdnComment, td[id="hdnComment"]');
+    if (commentCell) {
+      // The content is HTML-encoded, need to decode it
+      const rawComment = commentCell.innerHTML || commentCell.textContent;
+      if (rawComment && rawComment.trim()) {
+        // Decode HTML entities
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = rawComment;
+        const decodedHtml = tempDiv.textContent || tempDiv.innerText;
+        
+        // Parse the decoded HTML to extract just the note text
+        // Format: <br/><img .../><b>Username  Date</b> Note text
+        const noteMatch = decodedHtml.match(/<b>([^<]+)<\/b>\s*(.+)$/i);
+        let noteText = '';
+        if (noteMatch) {
+          noteText = noteMatch[2].trim();
+        } else {
+          // If pattern doesn't match, try to get plain text by stripping HTML
+          const stripDiv = document.createElement('div');
+          stripDiv.innerHTML = decodedHtml;
+          noteText = stripDiv.textContent || stripDiv.innerText || '';
+          noteText = noteText.trim();
+        }
+        
+        // Get actual author from modifiedByUserNameDiv instead of the note content
+        // The note content often shows "Budgyt Support" as a default
+        let author = '';
+        let modifiedDate = '';
+        const modifiedByDiv = row.querySelector('.modifiedByUserName-modal, #modifiedByUserNameDiv');
+        if (modifiedByDiv) {
+          const authorEl = modifiedByDiv.querySelector('.datModifiedBy, b.datModifiedBy');
+          const dateEl = modifiedByDiv.querySelector('.datModifiedDate');
+          if (authorEl) {
+            author = authorEl.textContent.replace(/:$/, '').trim();
+          }
+          if (dateEl) {
+            // Parse the ISO date to a readable format
+            const dateStr = dateEl.textContent;
+            try {
+              const date = new Date(dateStr);
+              modifiedDate = date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+              modifiedDate = dateStr;
+            }
+          }
+        }
+        
+        if (noteText) {
+          if (author && modifiedDate) {
+            note = `[${author} ${modifiedDate}] ${noteText}`;
+          } else if (author) {
+            note = `[${author}] ${noteText}`;
+          } else {
+            note = noteText;
+          }
+        }
+        
+        if (debugModeEnabled) {
+          console.log('Found note:', note);
+        }
+      }
+    }
+    
     const result = {
       description,
       vendor,
       monthly,
-      total
+      total,
+      note
     };
     
     console.log('Extracted transaction:', result);
@@ -4254,6 +4392,96 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
         .betterbudgyt-summary-card-value {
           font-size: 1.5rem !important;
         }
+        /* Note Modal Styles */
+        .betterbudgyt-note-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10001;
+        }
+        .betterbudgyt-note-modal {
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+          max-width: 500px;
+          width: 90%;
+          max-height: 80vh;
+          overflow: hidden;
+        }
+        .betterbudgyt-note-modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 20px;
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .betterbudgyt-note-modal-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+        .betterbudgyt-note-modal-close {
+          background: none;
+          border: none;
+          font-size: 24px;
+          color: #64748b;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 4px;
+        }
+        .betterbudgyt-note-modal-close:hover {
+          background: #e2e8f0;
+          color: #1e293b;
+        }
+        .betterbudgyt-note-modal-body {
+          padding: 20px;
+        }
+        .betterbudgyt-note-modal-item {
+          font-size: 14px;
+          color: #334155;
+          margin-bottom: 8px;
+        }
+        .betterbudgyt-note-modal-content {
+          background: #fefce8;
+          border-left: 4px solid #eab308;
+          padding: 16px;
+          border-radius: 0 8px 8px 0;
+          margin-top: 16px;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #1e293b;
+          white-space: pre-wrap;
+        }
+        /* Note icon inline styles */
+        .betterbudgyt-note-icon {
+          cursor: pointer;
+          font-size: 13px;
+          margin-right: 6px;
+          opacity: 0.85;
+          display: inline-block;
+          vertical-align: middle;
+        }
+        .betterbudgyt-note-icon:hover {
+          opacity: 1;
+        }
+        .betterbudgyt-mini-table tr.has-note {
+          background: #faf5ff !important;
+        }
+        .betterbudgyt-mini-table tr.has-note:hover {
+          background: #f3e8ff !important;
+        }
+        /* Compact values for 5+ digit numbers */
+        .betterbudgyt-mini-value.compact-value {
+          font-size: 10px;
+          letter-spacing: -0.3px;
+        }
       </style>
     </head>
     <body>
@@ -4337,9 +4565,80 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
           return str.replace(/^\\d+[-.]?\\s*/, '');
         }
         
+        // Show note in a modal
+        function showNoteModal(description, note) {
+          const existingModal = document.querySelector('.betterbudgyt-note-modal-overlay');
+          if (existingModal) existingModal.remove();
+          
+          let author = '';
+          let noteContent = note;
+          const match = note.match(/^\\[([^\\]]+)\\]\\s*(.*)$/s);
+          if (match) {
+            author = match[1];
+            noteContent = match[2];
+          }
+          
+          function escapeForModal(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+          }
+          
+          const overlay = document.createElement('div');
+          overlay.className = 'betterbudgyt-note-modal-overlay';
+          overlay.innerHTML = '<div class="betterbudgyt-note-modal">' +
+            '<div class="betterbudgyt-note-modal-header">' +
+              '<div class="betterbudgyt-note-modal-title">📝 Note</div>' +
+              '<button class="betterbudgyt-note-modal-close">&times;</button>' +
+            '</div>' +
+            '<div class="betterbudgyt-note-modal-body">' +
+              '<div class="betterbudgyt-note-modal-item"><strong>Item:</strong> ' + escapeForModal(description) + '</div>' +
+              (author ? '<div class="betterbudgyt-note-modal-item"><strong>By:</strong> ' + escapeForModal(author) + '</div>' : '') +
+              '<div class="betterbudgyt-note-modal-content">' + escapeForModal(noteContent) + '</div>' +
+            '</div>' +
+          '</div>';
+          
+          overlay.addEventListener('click', (e) => {
+            if (e.target === overlay || e.target.closest('.betterbudgyt-note-modal-close')) {
+              overlay.remove();
+            }
+          });
+          
+          document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape') {
+              overlay.remove();
+              document.removeEventListener('keydown', escHandler);
+            }
+          });
+          
+          document.body.appendChild(overlay);
+        }
+        
+        // Click handler for note icons
+        document.addEventListener('click', (event) => {
+          const noteIcon = event.target.closest('.betterbudgyt-note-icon');
+          if (noteIcon) {
+            const note = noteIcon.dataset.note;
+            const desc = noteIcon.dataset.desc;
+            if (note) {
+              event.stopPropagation();
+              showNoteModal(desc, note);
+            }
+          }
+        });
+        
         // Generate transactions HTML
         function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
           let html = '<div class="betterbudgyt-transactions-grid">';
+          
+          // Helper to escape HTML
+          function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+          }
           
           if (deptData.dataset1?.transactions?.length > 0) {
             html += '<div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-1">';
@@ -4347,11 +4646,16 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
             html += '<table class="betterbudgyt-mini-table"><thead><tr>';
             html += '<th>Description</th><th>Vendor</th>';
             if (!hideMonths) months.forEach(m => html += '<th>' + m + '</th>');
-            html += '<th>Total</th></tr></thead><tbody>';
+            html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
             deptData.dataset1.transactions.forEach(t => {
-              html += '<tr><td class="betterbudgyt-mini-desc">' + (t.description || 'No Description') + '</td>';
+              const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
+              html += '<tr' + (t.note ? ' class="has-note"' : '') + '><td class="betterbudgyt-mini-desc">' + noteIcon + (t.description || 'No Description') + '</td>';
               html += '<td class="betterbudgyt-mini-vendor">' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
-              if (!hideMonths) months.forEach(m => html += '<td class="betterbudgyt-mini-value">' + formatNumber(t.monthly?.[m] || 0) + '</td>');
+              if (!hideMonths) months.forEach(m => {
+                const val = Math.abs(t.monthly?.[m] || 0);
+                const isCompact = val >= 10000;
+                html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + '">' + formatNumber(t.monthly?.[m] || 0) + '</td>';
+              });
               html += '<td class="betterbudgyt-mini-total">' + formatNumber(t.total || 0) + '</td></tr>';
             });
             html += '</tbody></table></div>';
@@ -4363,11 +4667,16 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
             html += '<table class="betterbudgyt-mini-table"><thead><tr>';
             html += '<th>Description</th><th>Vendor</th>';
             if (!hideMonths) months.forEach(m => html += '<th>' + m + '</th>');
-            html += '<th>Total</th></tr></thead><tbody>';
+            html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
             deptData.dataset2.transactions.forEach(t => {
-              html += '<tr><td class="betterbudgyt-mini-desc">' + (t.description || 'No Description') + '</td>';
+              const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
+              html += '<tr' + (t.note ? ' class="has-note"' : '') + '><td class="betterbudgyt-mini-desc">' + noteIcon + (t.description || 'No Description') + '</td>';
               html += '<td class="betterbudgyt-mini-vendor">' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
-              if (!hideMonths) months.forEach(m => html += '<td class="betterbudgyt-mini-value">' + formatNumber(t.monthly?.[m] || 0) + '</td>');
+              if (!hideMonths) months.forEach(m => {
+                const val = Math.abs(t.monthly?.[m] || 0);
+                const isCompact = val >= 10000;
+                html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + '">' + formatNumber(t.monthly?.[m] || 0) + '</td>';
+              });
               html += '<td class="betterbudgyt-mini-total">' + formatNumber(t.total || 0) + '</td></tr>';
             });
             html += '</tbody></table></div>';
@@ -4725,7 +5034,7 @@ async function exportComparisonToExcel(comparisonData, hideMonths = false, filte
   // Build data rows
   const baseHeaders = ['Department', 'Dataset', 'Description', 'Vendor'];
   const monthHeaders = hideMonths ? [] : months;
-  const headers = [...baseHeaders, ...monthHeaders, 'Total'];
+  const headers = [...baseHeaders, ...monthHeaders, 'Total', 'Notes'];
   
   const allRows = [];
   allRows.push(headers);
@@ -4744,6 +5053,7 @@ async function exportComparisonToExcel(comparisonData, hideMonths = false, filte
           months.forEach(m => row.push(t.monthly?.[m] || 0));
         }
         row.push(t.total || 0);
+        row.push(t.note || '');
         allRows.push(row);
       });
     }
@@ -4761,6 +5071,7 @@ async function exportComparisonToExcel(comparisonData, hideMonths = false, filte
           months.forEach(m => row.push(t.monthly?.[m] || 0));
         }
         row.push(t.total || 0);
+        row.push(t.note || '');
         allRows.push(row);
       });
     }
@@ -4882,17 +5193,22 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
             <th>Description</th>
             <th>Vendor</th>
             ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
-            <th>Total</th>
+            <th class="betterbudgyt-total-col">Total</th>
           </tr>
         </thead>
         <tbody>
     `;
     deptData.dataset1.transactions.forEach(t => {
+      const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
       html += `
-        <tr>
-          <td class="betterbudgyt-mini-desc">${t.description || 'No Description'}</td>
+        <tr${t.note ? ' class="has-note"' : ''}>
+          <td class="betterbudgyt-mini-desc">${noteIcon}${t.description || 'No Description'}</td>
           <td class="betterbudgyt-mini-vendor">${stripNumberPrefix(t.vendor) || '-'}</td>
-          ${hideMonths ? '' : months.map(m => `<td class="betterbudgyt-mini-value">${formatNumber(t.monthly?.[m] || 0)}</td>`).join('')}
+          ${hideMonths ? '' : months.map(m => {
+            const val = Math.abs(t.monthly?.[m] || 0);
+            const isCompact = val >= 10000;
+            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}">${formatNumber(t.monthly?.[m] || 0)}</td>`;
+          }).join('')}
           <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
         </tr>
       `;
@@ -4917,17 +5233,22 @@ function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMont
             <th>Description</th>
             <th>Vendor</th>
             ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
-            <th>Total</th>
+            <th class="betterbudgyt-total-col">Total</th>
           </tr>
         </thead>
         <tbody>
     `;
     deptData.dataset2.transactions.forEach(t => {
+      const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
       html += `
-        <tr>
-          <td class="betterbudgyt-mini-desc">${t.description || 'No Description'}</td>
+        <tr${t.note ? ' class="has-note"' : ''}>
+          <td class="betterbudgyt-mini-desc">${noteIcon}${t.description || 'No Description'}</td>
           <td class="betterbudgyt-mini-vendor">${stripNumberPrefix(t.vendor) || '-'}</td>
-          ${hideMonths ? '' : months.map(m => `<td class="betterbudgyt-mini-value">${formatNumber(t.monthly?.[m] || 0)}</td>`).join('')}
+          ${hideMonths ? '' : months.map(m => {
+            const val = Math.abs(t.monthly?.[m] || 0);
+            const isCompact = val >= 10000;
+            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}">${formatNumber(t.monthly?.[m] || 0)}</td>`;
+          }).join('')}
           <td class="betterbudgyt-mini-total">${formatNumber(t.total || 0)}</td>
         </tr>
       `;
