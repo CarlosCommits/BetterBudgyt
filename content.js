@@ -4558,7 +4558,7 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
     <!DOCTYPE html>
     <html>
     <head>
-      <title>${stripNumberPrefix(deptName)} - Comparison</title>
+      <title>Datasheet Comparison${originalComparisonData.accountName ? ` - ${stripNumberPrefix(originalComparisonData.accountName)}` : ''} - ${stripNumberPrefix(deptName)}</title>
       <meta charset="UTF-8">
       <style>${extensionCss}</style>
       <style>
@@ -4823,7 +4823,8 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
       <div class="betterbudgyt-comparison-modal">
         <div class="betterbudgyt-comparison-modal-content">
           <div class="betterbudgyt-comparison-modal-header">
-            <h2>📊 ${stripNumberPrefix(deptName)}</h2>
+            <h2>📊 Datasheet Comparison${originalComparisonData.accountName ? ` - ${stripNumberPrefix(originalComparisonData.accountName)}` : ''}</h2>
+            <div class="betterbudgyt-comparison-subtitle" style="font-size: 14px; color: #64748b; margin-top: 4px;">${stripNumberPrefix(deptName)}</div>
           </div>
           <div class="betterbudgyt-comparison-modal-body">
             <!-- Summary Cards -->
