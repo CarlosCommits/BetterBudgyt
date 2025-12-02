@@ -5,8 +5,7 @@
   "description": "Enhance Budgyt with customizable variance calculations",
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   "host_permissions": [
     "https://*.budgyt.com/*"
