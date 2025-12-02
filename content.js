@@ -5303,8 +5303,6 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
               clearBtn.addEventListener('click', () => {
                 searchInput.value = '';
                 clearHighlights();
-                const rows = modal.querySelectorAll('.betterbudgyt-mini-table tbody tr');
-                rows.forEach(row => row.style.display = '');
                 updateMatchCounter();
                 updateClearButton();
                 searchInput.focus();
@@ -5319,25 +5317,17 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
                 updateClearButton();
                 clearHighlights();
                 
-                const rows = modal.querySelectorAll('.betterbudgyt-mini-table tbody tr');
-                
                 if (searchTerm === '') {
-                  rows.forEach(row => row.style.display = '');
                   updateMatchCounter();
                   return;
                 }
                 
-                // Filter rows and highlight matches
+                // Highlight matches in all rows (don't hide non-matching rows)
+                const rows = modal.querySelectorAll('.betterbudgyt-mini-table tbody tr');
                 rows.forEach(row => {
-                  const text = row.textContent.toLowerCase();
-                  const matches = text.includes(searchTerm.toLowerCase());
-                  row.style.display = matches ? '' : 'none';
-                  
-                  if (matches) {
-                    row.querySelectorAll('.betterbudgyt-mini-desc, .betterbudgyt-mini-vendor').forEach(cell => {
-                      highlightText(cell, searchTerm);
-                    });
-                  }
+                  row.querySelectorAll('.betterbudgyt-mini-desc, .betterbudgyt-mini-vendor').forEach(cell => {
+                    highlightText(cell, searchTerm);
+                  });
                 });
                 
                 // Scroll to first match
