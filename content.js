@@ -4856,7 +4856,9 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
                   <path d="m21 21-4.35-4.35"></path>
                 </svg>
                 <input type="text" class="betterbudgyt-search-input" id="comparisonSearch" placeholder="Search descriptions, vendors...">
+                <button class="betterbudgyt-search-clear" type="button" title="Clear search" style="display: none;">&times;</button>
               </div>
+              <span class="betterbudgyt-search-counter" style="display: none;"></span>
               <div class="betterbudgyt-filter-chips">
                 <button class="betterbudgyt-filter-chip active" data-filter="all">All</button>
                 <button class="betterbudgyt-filter-chip betterbudgyt-filter-chip-dataset1" data-filter="dataset1">${singleDeptData.dataset1.dataType}</button>
@@ -5188,17 +5190,173 @@ async function openDepartmentInNewTab(deptId, originalComparisonData, hideMonths
             let currentHideMonths = ${hideMonths};
             console.log('Initial hideMonths:', currentHideMonths);
             
-            // Search functionality
+            // Search functionality with highlighting and auto-scroll
             const searchInput = modal.querySelector('#comparisonSearch');
+            const searchCounter = modal.querySelector('.betterbudgyt-search-counter');
+            const clearBtn = modal.querySelector('.betterbudgyt-search-clear');
+            let currentMatchIndex = 0;
+            let allMatches = [];
+            
+            // Helper to clear all highlights
+            const clearHighlights = () => {
+              modal.querySelectorAll('.betterbudgyt-search-highlight').forEach(el => {
+                const parent = el.parentNode;
+                parent.replaceChild(document.createTextNode(el.textContent), el);
+                parent.normalize();
+              });
+              allMatches = [];
+              currentMatchIndex = 0;
+            };
+            
+            // Helper to escape regex special characters
+            const escapeRegex = (str) => {
+              const specials = '-/\\\\^$*+?.()|[]{}';
+              let result = '';
+              for (let i = 0; i < str.length; i++) {
+                result += specials.indexOf(str[i]) !== -1 ? '\\\\' + str[i] : str[i];
+              }
+              return result;
+            };
+            
+            // Helper to highlight text in an element
+            const highlightText = (element, searchTerm) => {
+              if (!searchTerm || !element) return;
+              
+              const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+              const textNodes = [];
+              let node;
+              while (node = walker.nextNode()) {
+                if (node.textContent.toLowerCase().includes(searchTerm.toLowerCase())) {
+                  textNodes.push(node);
+                }
+              }
+              
+              textNodes.forEach(textNode => {
+                const text = textNode.textContent;
+                const regex = new RegExp('(' + escapeRegex(searchTerm) + ')', 'gi');
+                const parts = text.split(regex);
+                
+                if (parts.length > 1) {
+                  const fragment = document.createDocumentFragment();
+                  parts.forEach(part => {
+                    if (part.toLowerCase() === searchTerm.toLowerCase()) {
+                      const mark = document.createElement('mark');
+                      mark.className = 'betterbudgyt-search-highlight';
+                      mark.textContent = part;
+                      fragment.appendChild(mark);
+                      allMatches.push(mark);
+                    } else {
+                      fragment.appendChild(document.createTextNode(part));
+                    }
+                  });
+                  textNode.parentNode.replaceChild(fragment, textNode);
+                }
+              });
+            };
+            
+            // Helper to scroll to and focus a match
+            const scrollToMatch = (index) => {
+              if (allMatches.length === 0) return;
+              
+              allMatches.forEach(m => m.classList.remove('current'));
+              currentMatchIndex = ((index % allMatches.length) + allMatches.length) % allMatches.length;
+              
+              const match = allMatches[currentMatchIndex];
+              if (match) {
+                match.classList.add('current');
+                
+                // Expand parent card if collapsed
+                const card = match.closest('.betterbudgyt-dept-card');
+                if (card && !card.classList.contains('expanded')) {
+                  card.classList.add('expanded');
+                  const body = card.querySelector('.betterbudgyt-dept-card-body');
+                  if (body) body.style.display = 'block';
+                  const btn = card.querySelector('.betterbudgyt-dept-expand-btn');
+                  if (btn) btn.textContent = '▼';
+                }
+                
+                match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                updateMatchCounter();
+              }
+            };
+            
+            // Helper to update match counter display
+            const updateMatchCounter = () => {
+              if (allMatches.length > 0) {
+                searchCounter.textContent = (currentMatchIndex + 1) + ' of ' + allMatches.length;
+                searchCounter.style.display = '';
+              } else if (searchInput.value.trim()) {
+                searchCounter.textContent = 'No matches';
+                searchCounter.style.display = '';
+              } else {
+                searchCounter.style.display = 'none';
+              }
+            };
+            
+            // Helper to update clear button visibility
+            const updateClearButton = () => {
+              clearBtn.style.display = searchInput.value.trim() ? '' : 'none';
+            };
+            
+            // Clear button click handler
+            if (clearBtn) {
+              clearBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                clearHighlights();
+                const rows = modal.querySelectorAll('.betterbudgyt-mini-table tbody tr');
+                rows.forEach(row => row.style.display = '');
+                updateMatchCounter();
+                updateClearButton();
+                searchInput.focus();
+              });
+            }
+            
             if (searchInput) {
               console.log('Search input found');
               searchInput.addEventListener('input', (event) => {
-                const searchTerm = event.target.value.toLowerCase();
+                const searchTerm = event.target.value.trim();
+                
+                updateClearButton();
+                clearHighlights();
+                
                 const rows = modal.querySelectorAll('.betterbudgyt-mini-table tbody tr');
+                
+                if (searchTerm === '') {
+                  rows.forEach(row => row.style.display = '');
+                  updateMatchCounter();
+                  return;
+                }
+                
+                // Filter rows and highlight matches
                 rows.forEach(row => {
                   const text = row.textContent.toLowerCase();
-                  row.style.display = searchTerm === '' || text.includes(searchTerm) ? '' : 'none';
+                  const matches = text.includes(searchTerm.toLowerCase());
+                  row.style.display = matches ? '' : 'none';
+                  
+                  if (matches) {
+                    row.querySelectorAll('.betterbudgyt-mini-desc, .betterbudgyt-mini-vendor').forEach(cell => {
+                      highlightText(cell, searchTerm);
+                    });
+                  }
                 });
+                
+                // Scroll to first match
+                if (allMatches.length > 0) {
+                  scrollToMatch(0);
+                }
+                updateMatchCounter();
+              });
+              
+              // Add keyboard navigation (Enter = next, Shift+Enter = prev)
+              searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  if (event.shiftKey) {
+                    scrollToMatch(currentMatchIndex - 1);
+                  } else {
+                    scrollToMatch(currentMatchIndex + 1);
+                  }
+                }
               });
             }
             
