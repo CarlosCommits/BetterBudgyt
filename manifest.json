@@ -21,7 +21,21 @@
   "content_scripts": [
     {
       "matches": ["https://*.budgyt.com/*"],
-      "js": ["content.js"],
+      "js": [
+        "modules/utils.js",
+        "modules/state.js",
+        "modules/ui/modals.js",
+        "modules/ui/panels.js",
+        "modules/features/variance.js",
+        "modules/features/compact-view.js",
+        "modules/features/comparison/cell-utils.js",
+        "modules/features/comparison/parser.js",
+        "modules/features/comparison/data-fetcher.js",
+        "modules/features/comparison/selection.js",
+        "modules/features/comparison/modal.js",
+        "modules/observers.js",
+        "content.js"
+      ],
       "css": ["styles.css"]
     }
   ],
