@@ -16,6 +16,17 @@ This repository contains a Chrome extension that enhances Budgyt dashboards. Use
 - During development, use **Reload** on the extension, then refresh a `*.budgyt.com` page to verify changes.
 - Use Chrome DevTools on Budgyt pages to debug `content.js` and on the popup for `popup.js`.
 
+### Packaging for Chrome Web Store
+
+Run `.\build.ps1` to create a zip file for submission. The script reads the version from `manifest.json` and outputs `BetterBudgyt-v{version}.zip`.
+
+**Important:** If you add new files or folders to the extension, update the `$includes` array in `build.ps1` to ensure they are included in the package. The current includes are:
+
+- `manifest.json`, `content.js`, `popup.html`, `popup.js`, `styles.css`
+- `images/`, `modules/`, `lib/`
+
+Development artifacts like `context/`, `*.bak`, `AGENTS.md`, and `README.md` are intentionally excluded.
+
 ## Coding Style & Naming Conventions
 
 - Use 2-space indentation, ES6+ syntax, and `const`/`let` instead of `var`.

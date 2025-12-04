@@ -112,7 +112,9 @@ A Chrome extension that enhances Budgyt.com dashboards with customizable varianc
 1. Clone the repository
 2. Make desired modifications
 3. Test locally using Chrome's developer mode
-4. Package for distribution if needed
+4. Run `.\build.ps1` to create a zip for Chrome Web Store submission
+
+The build script reads the version from `manifest.json` and outputs `BetterBudgyt-v{version}.zip`, excluding development files like `context/`, `AGENTS.md`, and `README.md`.
 
 ### Contributing
 - Fork the repository
