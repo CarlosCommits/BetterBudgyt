@@ -295,24 +295,8 @@
       }
     });
     
-    // Try SheetJS, fallback to CSV
-    let useXlsx = false;
-    if (!window.XLSX) {
-      try {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-        useXlsx = true;
-      } catch (e) {
-        useXlsx = false;
-      }
-    } else {
-      useXlsx = true;
-    }
+    // Use bundled SheetJS library, fallback to CSV if unavailable
+    const useXlsx = !!window.XLSX;
     
     const filterSuffix = filterMode === 'all' ? '' : `_${filterMode === 'dataset1' ? 'actuals' : 'budget'}`;
     const baseFilename = `comparison_${accountName.replace(/[^a-z0-9]/gi, '_')}${filterSuffix}_${new Date().toISOString().split('T')[0]}`;
