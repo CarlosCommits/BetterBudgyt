@@ -65,7 +65,7 @@
       if (action === 'add-comment') {
         showAddCommentModal(cellData, transactionData, datasetInfo);
       } else if (action === 'view-comments') {
-        viewExistingComments(cellData, transactionData);
+        viewExistingComments(cellData, transactionData, datasetInfo);
       }
     });
     
@@ -271,6 +271,16 @@
       try {
         await saveComment(cellData, transactionData, datasetInfo, commentText, selectedUsers);
         showStatus(overlay, 'Comment saved successfully!', 'success');
+        
+        // Add has-comment class to all matching cells (visual feedback without refresh)
+        const cellSelector = `[data-pl-element-uid="${transactionData.plElementUID}"][data-field="${cellData.field}"]`;
+        document.querySelectorAll(cellSelector).forEach(cell => {
+          cell.classList.add('has-comment');
+        });
+        
+        // Update the cached comparison data so the comment persists on modal reopen
+        updateCachedCommentFlag(transactionData.plElementUID, cellData.field, datasetInfo);
+        
         setTimeout(closeModal, 1500);
       } catch (error) {
         console.error('Failed to save comment:', error);
@@ -285,6 +295,32 @@
     const statusEl = overlay.querySelector('.betterbudgyt-add-comment-status');
     statusEl.textContent = message;
     statusEl.className = `betterbudgyt-add-comment-status ${type}`;
+  }
+
+  // Update cached comparison data to mark a cell as having a comment
+  function updateCachedCommentFlag(plElementUID, field, datasetInfo) {
+    const state = window.BetterBudgyt.state;
+    const comparisonData = state.currentComparisonData;
+    if (!comparisonData) return;
+    
+    // Determine which dataset to update
+    const datasetKey = datasetInfo.datasetIndex === 1 ? 'dataset1' : 'dataset2';
+    const departments = comparisonData[datasetKey]?.departments;
+    if (!departments) return;
+    
+    // Find the transaction with matching plElementUID and update its comments
+    for (const dept of departments) {
+      if (!dept.transactions) continue;
+      for (const tx of dept.transactions) {
+        if (tx.plElementUID === plElementUID) {
+          // Initialize comments object if needed
+          tx.comments = tx.comments || {};
+          tx.comments[field] = true;
+          console.log(`Updated cached comment flag: ${datasetKey}, plElementUID=${plElementUID}, field=${field}`);
+          return;
+        }
+      }
+    }
   }
 
   function getFieldLabel(field) {
@@ -438,18 +474,21 @@
   }
 
   // View existing comments
-  async function viewExistingComments(cellData, transactionData) {
+  async function viewExistingComments(cellData, transactionData, datasetInfo) {
     const plElementUID = transactionData.plElementUID;
     if (!plElementUID) {
       alert('Cannot view comments - missing element ID');
       return;
     }
     
-    const apiField = FIELD_MAPPING[cellData.field] || cellData.field;
-    
     // Use the existing fetchAndShowComment function from modals
     const { fetchAndShowComment } = window.BetterBudgyt.ui.modals;
-    fetchAndShowComment(plElementUID, cellData.field, transactionData.description || 'Item');
+    fetchAndShowComment(plElementUID, cellData.field, transactionData.description || 'Item', {
+      onAddComment: () => {
+        // Open the add comment modal with the same context
+        showAddCommentModal(cellData, transactionData, datasetInfo);
+      }
+    });
   }
 
   // Parse cell data from a clicked element in the comparison table
@@ -468,10 +507,14 @@
     const isDataset2 = section?.classList.contains('betterbudgyt-transactions-section-2');
     
     // Determine which dataset
-    const datasetInfo = isDataset1 ? comparisonData.dataset1 : 
-                       isDataset2 ? comparisonData.dataset2 : null;
+    const datasetIndex = isDataset1 ? 1 : isDataset2 ? 2 : null;
+    const datasetSource = isDataset1 ? comparisonData.dataset1 : 
+                          isDataset2 ? comparisonData.dataset2 : null;
     
-    if (!datasetInfo) return null;
+    if (!datasetSource || !datasetIndex) return null;
+    
+    // Create datasetInfo with index for cache updates
+    const datasetInfo = { ...datasetSource, datasetIndex };
     
     // Find department data
     const department = datasetInfo.departments?.find(d => d.storeUID === deptId) || {};

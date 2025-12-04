@@ -45,7 +45,21 @@
       const desc = commentCell.dataset.desc;
       if (plElementUID && field) {
         event.stopPropagation();
-        modals.fetchAndShowComment(plElementUID, field, desc);
+        // Get context for Add Comment button using comparison module
+        const comparisonData = state.currentComparisonData;
+        const comments = comparison.comments;
+        
+        modals.fetchAndShowComment(plElementUID, field, desc, {
+          onAddComment: () => {
+            // Parse cell data and open add comment modal
+            if (comparisonData && comments) {
+              const parsed = comments.parseCellFromClick(commentCell, comparisonData);
+              if (parsed) {
+                comments.showAddCommentModal(parsed.cellData, parsed.transactionData, parsed.datasetInfo);
+              }
+            }
+          }
+        });
       }
     }
   });

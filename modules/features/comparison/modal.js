@@ -731,6 +731,9 @@
   function showComparisonModal(comparisonData) {
     const modalId = `comparison-modal-${++state.comparisonModalCounter}`;
     
+    // Store comparison data in state for click handlers
+    state.currentComparisonData = comparisonData;
+    
     const modal = document.createElement('div');
     modal.className = 'betterbudgyt-comparison-modal';
     modal.dataset.modalId = modalId;

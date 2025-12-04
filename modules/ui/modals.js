@@ -59,8 +59,8 @@
     targetDoc.body.appendChild(overlay);
   }
 
-  // Show comment modal
-  function showCommentModal(desc, field, content) {
+  // Show comment modal with optional Add Comment button
+  function showCommentModal(desc, field, content, options = {}) {
     // Remove any existing modal
     const existingModal = document.querySelector('.betterbudgyt-comment-modal-overlay');
     if (existingModal) {
@@ -69,6 +69,7 @@
     
     const fieldLabel = field === 'description' ? 'Description' : 
                        field === 'vendor' ? 'Vendor' : 
+                       field === 'total' ? 'Total' :
                        `${field} Value`;
     
     const overlay = document.createElement('div');
@@ -83,28 +84,43 @@
           <div class="betterbudgyt-comment-desc">${escapeHtml(desc)}</div>
           <div class="betterbudgyt-comment-content">${content}</div>
         </div>
+        <div class="betterbudgyt-comment-modal-footer">
+          <button class="betterbudgyt-comment-add-btn">+ Add Comment</button>
+        </div>
       </div>
     `;
     
     // Close handlers
+    const closeModal = () => overlay.remove();
+    
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay || e.target.closest('.betterbudgyt-comment-modal-close')) {
-        overlay.remove();
+        closeModal();
       }
     });
     
     document.addEventListener('keydown', function escHandler(e) {
       if (e.key === 'Escape') {
-        overlay.remove();
+        closeModal();
         document.removeEventListener('keydown', escHandler);
       }
     });
     
+    // Add Comment button handler
+    overlay.querySelector('.betterbudgyt-comment-add-btn').addEventListener('click', () => {
+      closeModal();
+      if (options.onAddComment) {
+        options.onAddComment();
+      }
+    });
+    
     document.body.appendChild(overlay);
+    return overlay;
   }
 
   // Fetch comment from Budgyt API and display it
-  async function fetchAndShowComment(plElementUID, field, desc) {
+  // options.onAddComment: callback when Add Comment button is clicked
+  async function fetchAndShowComment(plElementUID, field, desc, options = {}) {
     const { escapeHtml } = window.BetterBudgyt.utils;
     
     // Map field names to API field values
@@ -118,8 +134,8 @@
     
     const apiField = fieldMapping[field] || field;
     
-    // Show loading modal
-    showCommentModal(desc, field, '<div style="text-align: center; padding: 20px;"><i>Loading comment...</i></div>');
+    // Show loading modal with Add Comment callback
+    showCommentModal(desc, field, '<div style="text-align: center; padding: 20px;"><i>Loading comment...</i></div>', options);
     
     try {
       const response = await fetch('/Budget/GetUserComments', {

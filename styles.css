@@ -1775,3 +1775,26 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
   line-height: 1.6;
   color: #1e293b;
 }
+
+.betterbudgyt-comment-modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.betterbudgyt-comment-add-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.betterbudgyt-comment-add-btn:hover {
+  background: #1d4ed8;
+}
