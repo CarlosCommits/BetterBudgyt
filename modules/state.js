@@ -37,6 +37,9 @@
 
     // Modal counter for unique IDs
     comparisonModalCounter: 0,
+    
+    // Current comparison data for click handlers
+    currentComparisonData: null,
 
     // URL tracking for navigation detection
     lastUrl: window.location.href
