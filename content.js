@@ -256,6 +256,11 @@
     // Initialize row compare buttons
     comparison.selection.initRowCompareButtons();
     
+    // Initialize comments feature
+    if (comparison.comments && comparison.comments.init) {
+      comparison.comments.init();
+    }
+    
     // Wait for table to be ready
     await new Promise((resolve) => {
       observers.waitForTable(() => {

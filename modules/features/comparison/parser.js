@@ -226,27 +226,59 @@
         plElementUID = plElementCell.textContent.trim();
       }
       
-      // Extract comments info
+      // Extract comments info - find all cells with hasComment class
       const comments = {};
       
-      const descCell = row.querySelector('td.hasComment:first-child, td:first-child.hasComment');
-      if (descCell) {
-        comments.description = true;
-      }
-      
-      const vendorCellComment = row.querySelector('td.vendorLst.hasComment, td.vendor-wrap.hasComment');
-      if (vendorCellComment) {
-        comments.vendor = true;
-      }
-      
-      const monthNames = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-      monthNames.forEach((month, index) => {
-        const periodNum = index + 1;
-        const monthCell = row.querySelector(`td.data[data-period="P${periodNum}"].hasComment, td.DATValueM${periodNum}F.hasComment`);
-        if (monthCell) {
-          comments[month] = true;
+      // Get all tds with hasComment class
+      const commentCells = row.querySelectorAll('td.hasComment');
+      commentCells.forEach(cell => {
+        // Check what type of cell this is based on its classes or position
+        const classes = cell.className || '';
+        const title = cell.getAttribute('title') || '';
+        const dataPeriod = cell.getAttribute('data-period');
+        
+        // Description cell - first td or has desc content
+        if (cell === row.querySelector('td') || classes.match(/^\s*hasComment\s*$/)) {
+          comments.description = true;
+        }
+        
+        // Vendor cell
+        if (classes.includes('vendorLst') || classes.includes('vendor-wrap')) {
+          comments.vendor = true;
+        }
+        
+        // Month cells - check by data-period or DATValueM*F class
+        if (dataPeriod) {
+          const periodMatch = dataPeriod.match(/P(\d+)/);
+          if (periodMatch) {
+            const monthNames = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+            const periodNum = parseInt(periodMatch[1]);
+            if (periodNum >= 1 && periodNum <= 12) {
+              comments[monthNames[periodNum - 1]] = true;
+            }
+          }
+        }
+        
+        // Also check by class DATValueM*F
+        const monthClassMatch = classes.match(/DATValueM(\d+)F/);
+        if (monthClassMatch) {
+          const monthNames = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+          const periodNum = parseInt(monthClassMatch[1]);
+          if (periodNum >= 1 && periodNum <= 12) {
+            comments[monthNames[periodNum - 1]] = true;
+          }
+        }
+        
+        // Total cell
+        if (classes.includes('DATValueTotalF') || title === 'Total') {
+          comments.total = true;
         }
       });
+      
+      // Debug log if comments found
+      if (Object.keys(comments).length > 0) {
+        console.log('Found comments on fields:', comments, 'for transaction:', description?.substring(0, 50));
+      }
       
       const result = {
         description,

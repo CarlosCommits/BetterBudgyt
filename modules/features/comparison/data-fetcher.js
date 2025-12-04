@@ -528,6 +528,10 @@
       const result = {
         accountName,
         dataType,
+        budgetId,
+        budgetYear,
+        categoryUID: parameters.CategoryUID || parameters.categoryUID,
+        groupedcategory: parameters.groupedcategory,
         departments: [],
         transactions: [],
         totals: {},
