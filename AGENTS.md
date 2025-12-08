@@ -60,13 +60,13 @@ Budgyt uses a server-side session model that restricts operations to **one activ
 **⚠️ NEVER fetch data for multiple budget scenarios in parallel.** Each fetch operation primes the session for its budget. Parallel fetches will cause session conflicts and return incorrect data.
 
 ```javascript
-// ❌ WRONG - Parallel fetching causes session conflicts
+//  WRONG - Parallel fetching causes session conflicts
 const [data1, data2] = await Promise.all([
   fetchDatasheetData(params1, ...),  // Primes session for budget A
   fetchDatasheetData(params2, ...)   // Primes session for budget B - CONFLICT!
 ]);
 
-// ✅ CORRECT - Sequential fetching respects sessions
+//  CORRECT - Sequential fetching respects sessions
 const data1 = await fetchDatasheetData(params1, ...);  // Primes & fetches budget A
 const data2 = await fetchDatasheetData(params2, ...);  // Primes & fetches budget B
 ```
