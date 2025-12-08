@@ -740,6 +740,15 @@
         <div class="betterbudgyt-comparison-modal-content">
           <div class="betterbudgyt-comparison-modal-header">
             <h2>${headerTitle}</h2>
+            <div class="betterbudgyt-refresh-indicator" style="display: none;">
+              <svg class="betterbudgyt-refresh-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                <path d="M16 21h5v-5"></path>
+              </svg>
+              <span>Refreshing data...</span>
+            </div>
             <div class="betterbudgyt-comparison-modal-controls">
               <button class="betterbudgyt-comparison-modal-export" title="Export to Excel">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -842,6 +851,101 @@
       
       // Setup control buttons
       setupModalControls(modal, modalId, comparisonData, hideMonths);
+      
+      // Handle background refresh if data was served from cache
+      if (comparisonData._refreshPromise) {
+        const refreshIndicator = modal.querySelector('.betterbudgyt-refresh-indicator');
+        if (refreshIndicator) {
+          refreshIndicator.style.display = 'flex';
+        }
+        
+        comparisonData._refreshPromise
+          .then(freshData => {
+            // Check if modal is still open
+            if (!document.body.contains(modal)) {
+              console.log('Modal closed, skipping refresh update');
+              return;
+            }
+            
+            // Update the comparison data
+            comparisonData.dataset1 = freshData.dataset1;
+            comparisonData.dataset2 = freshData.dataset2;
+            state.currentComparisonData = comparisonData;
+            
+            // Update summary cards with fresh totals and counts
+            const summaryCards = modal.querySelectorAll('.betterbudgyt-summary-card');
+            if (summaryCards.length >= 3) {
+              // Dataset 1 totals
+              const d1Value = summaryCards[0].querySelector('.betterbudgyt-summary-card-value');
+              const d1Subtitle = summaryCards[0].querySelector('.betterbudgyt-summary-card-subtitle');
+              const d1Total = freshData.dataset1.grandTotals?.total || freshData.dataset1.totals?.total || 0;
+              const d1DeptCount = freshData.dataset1.departments?.length || 0;
+              const d1TxCount = freshData.dataset1.transactions?.length || 0;
+              if (d1Value) d1Value.textContent = formatNumber(d1Total);
+              if (d1Subtitle) d1Subtitle.textContent = `${d1DeptCount} departments · ${d1TxCount} transactions`;
+              
+              // Dataset 2 totals
+              const d2Value = summaryCards[1].querySelector('.betterbudgyt-summary-card-value');
+              const d2Subtitle = summaryCards[1].querySelector('.betterbudgyt-summary-card-subtitle');
+              const d2Total = freshData.dataset2.grandTotals?.total || freshData.dataset2.totals?.total || 0;
+              const d2DeptCount = freshData.dataset2.departments?.length || 0;
+              const d2TxCount = freshData.dataset2.transactions?.length || 0;
+              if (d2Value) d2Value.textContent = formatNumber(d2Total);
+              if (d2Subtitle) d2Subtitle.textContent = `${d2DeptCount} departments · ${d2TxCount} transactions`;
+              
+              // Variance
+              const diffValue = summaryCards[2].querySelector('.betterbudgyt-summary-card-value');
+              if (diffValue) diffValue.textContent = formatNumber(d1Total - d2Total);
+            }
+            
+            // Re-render the table content
+            const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+            if (tableContainer) {
+              // Preserve expanded department states
+              const expandedDepts = [];
+              modal.querySelectorAll('.betterbudgyt-dept-card.expanded').forEach(card => {
+                expandedDepts.push(card.dataset.dept);
+              });
+              
+              const currentHideMonths = modal.querySelector('#hideMonthsToggle')?.checked ?? hideMonths;
+              const currentClassTotalsOnly = modal.querySelector('#classTotalsOnlyToggle')?.checked ?? false;
+              tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, currentClassTotalsOnly);
+              
+              // Restore expanded states
+              expandedDepts.forEach(deptId => {
+                const card = tableContainer.querySelector(`.betterbudgyt-dept-card[data-dept="${deptId}"]`);
+                if (card) {
+                  card.classList.add('expanded');
+                  const body = card.querySelector('.betterbudgyt-dept-card-body');
+                  if (body) body.style.display = 'block';
+                }
+              });
+              
+              // Note: Card toggle listener is already on modal (event delegation), no need to re-add
+              
+              // Re-setup context menu handlers for comments
+              const { setupContextMenuHandlers } = window.BetterBudgyt.features.comparison.comments;
+              if (setupContextMenuHandlers) {
+                setupContextMenuHandlers(modal, comparisonData);
+              }
+            }
+            
+            // Hide the refresh indicator
+            if (refreshIndicator) {
+              refreshIndicator.style.display = 'none';
+            }
+            
+            console.log('✓ Modal updated with fresh data');
+          })
+          .catch(error => {
+            console.error('Background refresh failed:', error);
+            // Hide indicator on error too
+            const refreshIndicator = modal.querySelector('.betterbudgyt-refresh-indicator');
+            if (refreshIndicator) {
+              refreshIndicator.style.display = 'none';
+            }
+          });
+      }
     });
   }
 

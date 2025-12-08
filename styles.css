@@ -297,6 +297,29 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   letter-spacing: -0.025em;
 }
 
+/* Refresh Indicator */
+.betterbudgyt-refresh-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  font-size: 12px;
+  color: #93c5fd;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.betterbudgyt-refresh-spinner {
+  animation: betterbudgyt-spin 1s linear infinite;
+}
+
+@keyframes betterbudgyt-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .betterbudgyt-comparison-header-controls {
   display: flex;
   align-items: center;
