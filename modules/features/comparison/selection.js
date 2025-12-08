@@ -171,11 +171,13 @@
     showComparisonLoadingIndicator();
     
     openDatasheetsParallel(cell1Data, cell2Data)
-      .then(comparisonData => {
+      .then(result => {
+        const comparisonData = result.data;
         comparisonData._refreshData = { cell1Data, cell2Data };
+        comparisonData._refreshPromise = result.refreshPromise;
         hideComparisonLoadingIndicator();
         showComparisonModal(comparisonData);
-        console.log('Comparison completed successfully');
+        console.log('Comparison completed successfully' + (result.refreshPromise ? ' (background refresh in progress)' : ''));
       })
       .catch(error => {
         hideComparisonLoadingIndicator();
@@ -321,12 +323,14 @@
     showComparisonLoadingIndicator();
     
     openDatasheetsParallel(cell1Data, cell2Data)
-      .then(comparisonData => {
+      .then(result => {
+        const comparisonData = result.data;
         comparisonData.accountName = description;
         comparisonData._refreshData = { cell1Data, cell2Data };
+        comparisonData._refreshPromise = result.refreshPromise;
         hideComparisonLoadingIndicator();
         showComparisonModal(comparisonData);
-        console.log('Row comparison completed successfully');
+        console.log('Row comparison completed successfully' + (result.refreshPromise ? ' (background refresh in progress)' : ''));
       })
       .catch(error => {
         hideComparisonLoadingIndicator();

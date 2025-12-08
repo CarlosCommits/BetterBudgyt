@@ -681,26 +681,18 @@
     }
   }
 
-  // Open datasheets with caching
+  // Open datasheets with caching - returns { data, refreshPromise? }
+  // If cache hit, returns cached data immediately and refreshPromise for fresh data
   async function openDatasheetsParallel(cell1Data, cell2Data, forceRefresh = false) {
     const { extractCellParameters, buildAjaxParameters } = window.BetterBudgyt.features.comparison.cellUtils;
     
-    const comparisonData = {
-      dataset1: {
-        accountName: cell1Data.description,
-        dataType: cell1Data.columnType,
-        transactions: [],
-        totals: {},
-        failedDepartments: []
-      },
-      dataset2: {
-        accountName: cell2Data.description,
-        dataType: cell2Data.columnType,
-        transactions: [],
-        totals: {},
-        failedDepartments: []
-      }
-    };
+    const createEmptyDataset = (cellData) => ({
+      accountName: cellData.description,
+      dataType: cellData.columnType,
+      transactions: [],
+      totals: {},
+      failedDepartments: []
+    });
     
     try {
       const cell1Params = extractCellParameters(cell1Data.cell);
@@ -713,24 +705,26 @@
       const ajaxParams1 = buildAjaxParameters(cell1Params.categoryUID, cell1Params.groupedcategory);
       const ajaxParams2 = buildAjaxParameters(cell2Params.categoryUID, cell2Params.groupedcategory);
       
-      // Fetch with caching
-      const fetchWithCache = async (ajaxParams, cellData, cellParams, forceRefresh = false) => {
-        const cacheKey = `${cellParams.dataHref}|${ajaxParams.groupedcategory}`;
-        const cellTotal = cellData.value;
-        const cache = await getDatasheetCache();
-        const cached = cache[cacheKey];
-        const now = Date.now();
-        
-        if (cached && !forceRefresh) {
-          const isExpired = (now - cached.timestamp) > CACHE_MAX_AGE_MS;
-          const totalMatches = Math.abs(cached.cellTotal - cellTotal) < 0.01;
-          
-          if (!isExpired && totalMatches) {
-            console.log(`✓ Cache HIT for ${cellData.description} (${cellData.columnType})`);
-            return cached.data;
-          }
-        }
-        
+      // Check cache for both datasets
+      const cache = await getDatasheetCache();
+      const now = Date.now();
+      
+      const cacheKey1 = `${cell1Params.dataHref}|${ajaxParams1.groupedcategory}`;
+      const cacheKey2 = `${cell2Params.dataHref}|${ajaxParams2.groupedcategory}`;
+      
+      const cached1 = cache[cacheKey1];
+      const cached2 = cache[cacheKey2];
+      
+      const isValid1 = cached1 && !forceRefresh && 
+        (now - cached1.timestamp) <= CACHE_MAX_AGE_MS &&
+        Math.abs(cached1.cellTotal - cell1Data.value) < 0.01;
+      
+      const isValid2 = cached2 && !forceRefresh && 
+        (now - cached2.timestamp) <= CACHE_MAX_AGE_MS &&
+        Math.abs(cached2.cellTotal - cell2Data.value) < 0.01;
+      
+      // Function to fetch fresh data and update cache
+      const fetchFresh = async (ajaxParams, cellData, cellParams, cacheKey) => {
         const data = await fetchDatasheetData(
           ajaxParams,
           cellData.description,
@@ -738,26 +732,68 @@
           cellParams.dataHref
         );
         
-        cache[cacheKey] = {
-          cellTotal: cellTotal,
+        const freshCache = await getDatasheetCache();
+        freshCache[cacheKey] = {
+          cellTotal: cellData.value,
           data: data,
-          timestamp: now
+          timestamp: Date.now()
         };
-        await setDatasheetCache(cache);
+        await setDatasheetCache(freshCache);
         
         return data;
       };
       
-      console.log('Fetching datasheets with caching...');
+      // If both cached, return immediately and refresh in background
+      if (isValid1 && isValid2) {
+        console.log('✓ Cache HIT for both datasets - showing cached, refreshing in background');
+        
+        const comparisonData = {
+          dataset1: cached1.data,
+          dataset2: cached2.data
+        };
+        
+        // Create background refresh promise
+        // IMPORTANT: Fetch sequentially, not in parallel, because Budgyt only supports
+        // one active session at a time. Each fetchDatasheetData call primes the session.
+        const refreshPromise = (async () => {
+          console.log('🔄 Background refresh started (sequential to respect session)...');
+          const startTime = performance.now();
+          
+          // Fetch dataset1 first, then dataset2 (sequential to avoid session conflicts)
+          const freshData1 = await fetchFresh(ajaxParams1, cell1Data, cell1Params, cacheKey1);
+          const freshData2 = await fetchFresh(ajaxParams2, cell2Data, cell2Params, cacheKey2);
+          
+          const elapsed = performance.now() - startTime;
+          console.log(`🔄 Background refresh completed in ${elapsed.toFixed(0)}ms`);
+          
+          return {
+            dataset1: freshData1,
+            dataset2: freshData2
+          };
+        })();
+        
+        return { data: comparisonData, refreshPromise };
+      }
+      
+      // Otherwise fetch fresh (with partial cache if available)
+      // IMPORTANT: Fetch sequentially to respect Budgyt's single-session model
+      console.log('Fetching datasheets (cache miss or partial - sequential)...');
       const startTime = performance.now();
       
-      comparisonData.dataset1 = await fetchWithCache(ajaxParams1, cell1Data, cell1Params, forceRefresh);
-      comparisonData.dataset2 = await fetchWithCache(ajaxParams2, cell2Data, cell2Params, forceRefresh);
+      // Fetch sequentially, not in parallel, to avoid session conflicts
+      const data1 = isValid1 ? cached1.data : await fetchFresh(ajaxParams1, cell1Data, cell1Params, cacheKey1);
+      const data2 = isValid2 ? cached2.data : await fetchFresh(ajaxParams2, cell2Data, cell2Params, cacheKey2);
+      
+      const comparisonData = {
+        dataset1: data1,
+        dataset2: data2
+      };
       
       const elapsed = performance.now() - startTime;
       console.log(`Both datasheets fetched in ${elapsed.toFixed(0)}ms`);
       
-      return comparisonData;
+      // No refresh needed since we just fetched fresh
+      return { data: comparisonData, refreshPromise: null };
     } catch (error) {
       console.error('Error in datasheet comparison:', error);
       throw new Error(`Failed to compare datasheets: ${error.message}`);
