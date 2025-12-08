@@ -47,32 +47,73 @@ Development artifacts like `context/`, `*.bak`, `AGENTS.md`, and `README.md` are
 
 ## Budgyt Session Management
 
-Budgyt uses a server-side session model that restricts modifications to **one active budget scenario at a time**. Understanding this is critical for any feature that writes data.
+Budgyt uses a server-side session model that restricts operations to **one active budget scenario at a time**. This affects both READ and WRITE operations. Understanding this is critical for any feature that fetches or modifies data.
 
 ### How Sessions Work
 
-- **Single Active Session**: Only one budget (identified by `BudgetUID`) can be "in session" for modifications at any given time. Attempting to modify a budget that isn't active will fail silently or return errors.
-- **Session Priming**: Before making write operations (e.g., saving comments), the target budget must be activated by calling `CheckBudgetInSession`.
+- **Single Active Session**: Only one budget (identified by `BudgetUID`) can be "in session" at any given time. This applies to BOTH reading datasheet data AND writing (comments, etc.).
+- **Session Priming**: Before any operation on a budget, the session must be primed/activated. This happens via GET requests to the DataInput page or POST to `CheckBudgetInSession`.
 - **Session Context**: The session is tied to a specific `BudgetUID` and `BudgetYear`. These values are extracted from the page URL (e.g., `/Budget/DataInput/{budgetId}/{budgetYear}`).
+
+### Critical: Sequential Fetching Required
+
+**⚠️ NEVER fetch data for multiple budget scenarios in parallel.** Each fetch operation primes the session for its budget. Parallel fetches will cause session conflicts and return incorrect data.
+
+```javascript
+// ❌ WRONG - Parallel fetching causes session conflicts
+const [data1, data2] = await Promise.all([
+  fetchDatasheetData(params1, ...),  // Primes session for budget A
+  fetchDatasheetData(params2, ...)   // Primes session for budget B - CONFLICT!
+]);
+
+// ✅ CORRECT - Sequential fetching respects sessions
+const data1 = await fetchDatasheetData(params1, ...);  // Primes & fetches budget A
+const data2 = await fetchDatasheetData(params2, ...);  // Primes & fetches budget B
+```
 
 ### Key APIs for Session Management
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/Budget/CheckBudgetInSession` | POST | Activates a budget for modification. Must be called before write operations. |
-| `/Budget/GetUserComments` | POST | Fetches comments for a planning element. Also helps establish session context. |
-| `/Budget/SaveUserComments` | POST | Saves a comment. Requires an active session for the target budget. |
+| `/Budget/DataInput/{id}/{year}` | GET | Primes session for a budget (done by `primeBudgetSession`) |
+| `/Budget/CheckBudgetInSession` | POST | Activates a budget for modification |
+| `/Budget/GetUserComments` | POST | Fetches comments; also establishes session context |
+| `/Budget/SaveUserComments` | POST | Saves a comment; requires active session |
 
-### Current Extension Implementation
+### Data Fetching Implementation
 
-The extension handles session management in `modules/features/comparison/comments.js`:
+The extension handles session management in `modules/features/comparison/data-fetcher.js`:
 
-1. **Before saving a comment**, we call `CheckBudgetInSession` with the `BudgetUID` extracted from the datasheet info.
-2. **Then call `GetUserComments`** for the target `PlElementUID` and field—this ensures session context is fully established.
-3. **Finally call `SaveUserComments`** with the comment data.
+1. **`primeBudgetSession(dataHref)`** - Makes a GET request to the DataInput URL to prime the session
+2. **`fetchDatasheetData(...)`** - Calls `primeBudgetSession` first, then fetches transaction data
+3. **`openDatasheetsParallel(...)`** - Despite the name, fetches datasets SEQUENTIALLY to respect sessions
 
 ```javascript
-// Simplified flow in activateCommentSession() and saveComment()
+// Simplified flow in fetchDatasheetData()
+async function fetchDatasheetData(parameters, accountName, dataType, dataHref) {
+  // STEP 1: Prime session with GET request
+  await primeBudgetSession(dataHref);
+  
+  // STEP 2: Fetch StoreUIDs
+  const storeUIDs = await fetchStoreUIDForDepartment(...);
+  
+  // STEP 3: Initialize session context
+  await fetchPercentApprovedValues(...);
+  
+  // STEP 4: Fetch actual transaction data
+  // ... fetch department data ...
+}
+```
+
+### Comment Operations
+
+For saving comments (`modules/features/comparison/comments.js`):
+
+1. **Call `CheckBudgetInSession`** with the `BudgetUID`
+2. **Call `GetUserComments`** to establish context
+3. **Call `SaveUserComments`** with the comment data
+
+```javascript
 await fetch('/Budget/CheckBudgetInSession', {
   method: 'POST',
   body: JSON.stringify({ BudgetUID: budgetId })
@@ -91,7 +132,8 @@ await fetch('/Budget/SaveUserComments', {
 
 ### Important Considerations
 
-- **Cross-budget comparisons**: When comparing two different budgets, comment operations will only work on one at a time. The session must be switched if commenting on items from the other budget.
+- **Cross-budget comparisons**: When comparing two different budgets, operations will only work on one at a time. Data must be fetched sequentially, and comment operations require switching sessions.
 - **Referer header**: The `SaveUserComments` request requires a correct `Referer` header pointing to the budget's DataInput page (e.g., `/Budget/DataInput/{budgetId}/{budgetYear}`).
 - **User mentions**: To mention users in comments, prepend `@username` to `CommentText` and include user IDs in `NotifyUserIdCSV`. Use `"-1"` when no users are selected.
 - **Planning Element UID**: Each transaction row has a unique `plElementUID` used to identify it in comment API calls. This is extracted from the DOM or parsed from API responses.
+- **Background refresh**: When refreshing cached data in the background, fetches must still be sequential. See `openDatasheetsParallel` for implementation.
