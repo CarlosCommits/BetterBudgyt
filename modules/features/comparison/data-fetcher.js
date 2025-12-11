@@ -766,10 +766,12 @@
           const elapsed = performance.now() - startTime;
           console.log(`🔄 Background refresh completed in ${elapsed.toFixed(0)}ms`);
           
-          return {
+          const refreshedData = {
             dataset1: freshData1,
             dataset2: freshData2
           };
+          
+          return refreshedData;
         })();
         
         return { data: comparisonData, refreshPromise };
