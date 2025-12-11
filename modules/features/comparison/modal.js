@@ -37,7 +37,7 @@
       `;
       deptData.dataset1.transactions.forEach(t => {
         const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
-        const fileIcon = t.fileAttachment?.hasFile ? `<a href="/Budget/DownloadSubCategoryDocument?folderName=${encodeURIComponent(t.fileAttachment.folderName)}" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>` : '';
+        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>` : '';
         const hasUID = !!t.plElementUID;
         const descHasComment = t.comments?.description && hasUID;
         const vendorHasComment = t.comments?.vendor && hasUID;
@@ -89,7 +89,7 @@
       `;
       deptData.dataset2.transactions.forEach(t => {
         const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
-        const fileIcon = t.fileAttachment?.hasFile ? `<a href="/Budget/DownloadSubCategoryDocument?folderName=${encodeURIComponent(t.fileAttachment.folderName)}" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>` : '';
+        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>` : '';
         const hasUID = !!t.plElementUID;
         const descHasComment = t.comments?.description && hasUID;
         const vendorHasComment = t.comments?.vendor && hasUID;
@@ -604,7 +604,7 @@
         html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
         deptData.dataset1.transactions.forEach(t => {
           const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
-          const fileIcon = t.fileAttachment?.hasFile ? '<a href="/Budget/DownloadSubCategoryDocument?folderName=' + encodeURIComponent(t.fileAttachment.folderName) + '" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>' : '';
+          const fileIcon = t.fileAttachment?.hasFile ? '<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>' : '';
           const hasUID = !!t.plElementUID;
           const descHasComment = t.comments?.description && hasUID;
           const vendorHasComment = t.comments?.vendor && hasUID;
@@ -630,7 +630,7 @@
         html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
         deptData.dataset2.transactions.forEach(t => {
           const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
-          const fileIcon = t.fileAttachment?.hasFile ? '<a href="/Budget/DownloadSubCategoryDocument?folderName=' + encodeURIComponent(t.fileAttachment.folderName) + '" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>' : '';
+          const fileIcon = t.fileAttachment?.hasFile ? '<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>' : '';
           const hasUID = !!t.plElementUID;
           const descHasComment = t.comments?.description && hasUID;
           const vendorHasComment = t.comments?.vendor && hasUID;
