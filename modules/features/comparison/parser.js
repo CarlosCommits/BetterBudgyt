@@ -280,6 +280,22 @@
         console.log('Found comments on fields:', comments, 'for transaction:', description?.substring(0, 50));
       }
       
+      // Extract file attachment info from hidden field (same pattern as notes from hdnComment)
+      let fileAttachment = null;
+      const folderCell = row.querySelector('td#hdnAttachedSubCategoryFolderName, td[id="hdnAttachedSubCategoryFolderName"]');
+      if (folderCell) {
+        const folderName = folderCell.getAttribute('data-attachedfolder') || folderCell.textContent.trim();
+        
+        if (folderName && folderName.length > 0) {
+          fileAttachment = {
+            hasFile: true,
+            folderName: folderName,
+            plElementUID: plElementUID
+          };
+          console.log('Found file attachment for transaction:', description?.substring(0, 50), fileAttachment);
+        }
+      }
+      
       const result = {
         description,
         vendor,
@@ -287,7 +303,8 @@
         total,
         note,
         plElementUID,
-        comments
+        comments,
+        fileAttachment
       };
       
       console.log('Extracted transaction:', result);

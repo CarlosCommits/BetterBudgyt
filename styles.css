@@ -1164,6 +1164,24 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   transform: scale(1.15);
 }
 
+/* File attachment icon styles */
+.betterbudgyt-file-icon {
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 4px;
+  opacity: 0.85;
+  transition: opacity 0.2s, transform 0.2s;
+  display: inline-block;
+  vertical-align: middle;
+  text-decoration: none;
+  color: inherit;
+}
+
+.betterbudgyt-file-icon:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
 /* Highlight rows with notes */
 .betterbudgyt-mini-table tr.has-note {
   background: #fefce8 !important; /* yellow-50 */
@@ -1171,6 +1189,24 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
 
 .betterbudgyt-mini-table tr.has-note:hover {
   background: #fef9c3 !important; /* yellow-100 */
+}
+
+/* Highlight rows with file attachments */
+.betterbudgyt-mini-table tr.has-file {
+  background: #f0f9ff !important; /* blue-50 */
+}
+
+.betterbudgyt-mini-table tr.has-file:hover {
+  background: #e0f2fe !important; /* blue-100 */
+}
+
+/* Combined note + file row */
+.betterbudgyt-mini-table tr.has-note.has-file {
+  background: linear-gradient(90deg, #fefce8 50%, #f0f9ff 50%) !important;
+}
+
+.betterbudgyt-mini-table tr.has-note.has-file:hover {
+  background: linear-gradient(90deg, #fef9c3 50%, #e0f2fe 50%) !important;
 }
 
 /* Note Modal Styles */

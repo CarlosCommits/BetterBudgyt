@@ -37,6 +37,7 @@
       `;
       deptData.dataset1.transactions.forEach(t => {
         const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
+        const fileIcon = t.fileAttachment?.hasFile ? `<a href="/Budget/DownloadSubCategoryDocument?folderName=${encodeURIComponent(t.fileAttachment.folderName)}" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>` : '';
         const hasUID = !!t.plElementUID;
         const descHasComment = t.comments?.description && hasUID;
         const vendorHasComment = t.comments?.vendor && hasUID;
@@ -45,9 +46,10 @@
         const descAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
         const vendorAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
         const totalAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="total" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
+        const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
         html += `
-          <tr${t.note ? ' class="has-note"' : ''}>
-            <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${noteIcon}${t.description || 'No Description'}</td>
+          <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
+            <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
             <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
             ${hideMonths ? '' : months.map(m => {
               const val = Math.abs(t.monthly?.[m] || 0);
@@ -87,6 +89,7 @@
       `;
       deptData.dataset2.transactions.forEach(t => {
         const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
+        const fileIcon = t.fileAttachment?.hasFile ? `<a href="/Budget/DownloadSubCategoryDocument?folderName=${encodeURIComponent(t.fileAttachment.folderName)}" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>` : '';
         const hasUID = !!t.plElementUID;
         const descHasComment = t.comments?.description && hasUID;
         const vendorHasComment = t.comments?.vendor && hasUID;
@@ -94,9 +97,10 @@
         const descAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
         const vendorAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
         const totalAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="total" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
+        const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
         html += `
-          <tr${t.note ? ' class="has-note"' : ''}>
-            <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${noteIcon}${t.description || 'No Description'}</td>
+          <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
+            <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
             <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
             ${hideMonths ? '' : months.map(m => {
               const val = Math.abs(t.monthly?.[m] || 0);
@@ -600,6 +604,7 @@
         html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
         deptData.dataset1.transactions.forEach(t => {
           const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
+          const fileIcon = t.fileAttachment?.hasFile ? '<a href="/Budget/DownloadSubCategoryDocument?folderName=' + encodeURIComponent(t.fileAttachment.folderName) + '" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>' : '';
           const hasUID = !!t.plElementUID;
           const descHasComment = t.comments?.description && hasUID;
           const vendorHasComment = t.comments?.vendor && hasUID;
@@ -607,8 +612,9 @@
           const descAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="description" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '';
           const vendorAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="vendor" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '';
           const totalAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="total" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '';
-          html += '<tr' + (t.note ? ' class="has-note"' : '') + '>';
-          html += '<td class="betterbudgyt-mini-desc' + (hasUID ? ' clickable-comment' : '') + (descHasComment ? ' has-comment' : '') + '"' + descAttrs + '>' + noteIcon + (t.description || 'No Description') + '</td>';
+          const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
+          html += '<tr' + (rowClasses ? ' class="' + rowClasses + '"' : '') + '>';
+          html += '<td class="betterbudgyt-mini-desc' + (hasUID ? ' clickable-comment' : '') + (descHasComment ? ' has-comment' : '') + '"' + descAttrs + '>' + fileIcon + noteIcon + (t.description || 'No Description') + '</td>';
           html += '<td class="betterbudgyt-mini-vendor' + (hasUID ? ' clickable-comment' : '') + (vendorHasComment ? ' has-comment' : '') + '"' + vendorAttrs + '>' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
           if (!hideMonths) months.forEach(m => { const val = Math.abs(t.monthly?.[m] || 0); const isCompact = val >= 10000; const hasComment = t.comments?.[m] && hasUID; const monthAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="' + m + '" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : ''; html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + (hasUID ? ' clickable-comment' : '') + (hasComment ? ' has-comment' : '') + '"' + monthAttrs + '>' + formatNumber(t.monthly?.[m] || 0) + '</td>'; });
           html += '<td class="betterbudgyt-mini-total' + (hasUID ? ' clickable-comment' : '') + (totalHasComment ? ' has-comment' : '') + '"' + totalAttrs + '>' + formatNumber(t.total || 0) + '</td></tr>';
@@ -624,6 +630,7 @@
         html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
         deptData.dataset2.transactions.forEach(t => {
           const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
+          const fileIcon = t.fileAttachment?.hasFile ? '<a href="/Budget/DownloadSubCategoryDocument?folderName=' + encodeURIComponent(t.fileAttachment.folderName) + '" class="betterbudgyt-file-icon" title="Download attached file" target="_blank">📎</a>' : '';
           const hasUID = !!t.plElementUID;
           const descHasComment = t.comments?.description && hasUID;
           const vendorHasComment = t.comments?.vendor && hasUID;
@@ -631,8 +638,9 @@
           const descAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="description" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '';
           const vendorAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="vendor" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '';
           const totalAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="total" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : '';
-          html += '<tr' + (t.note ? ' class="has-note"' : '') + '>';
-          html += '<td class="betterbudgyt-mini-desc' + (hasUID ? ' clickable-comment' : '') + (descHasComment ? ' has-comment' : '') + '"' + descAttrs + '>' + noteIcon + (t.description || 'No Description') + '</td>';
+          const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
+          html += '<tr' + (rowClasses ? ' class="' + rowClasses + '"' : '') + '>';
+          html += '<td class="betterbudgyt-mini-desc' + (hasUID ? ' clickable-comment' : '') + (descHasComment ? ' has-comment' : '') + '"' + descAttrs + '>' + fileIcon + noteIcon + (t.description || 'No Description') + '</td>';
           html += '<td class="betterbudgyt-mini-vendor' + (hasUID ? ' clickable-comment' : '') + (vendorHasComment ? ' has-comment' : '') + '"' + vendorAttrs + '>' + (stripNumberPrefix(t.vendor) || '-') + '</td>';
           if (!hideMonths) months.forEach(m => { const val = Math.abs(t.monthly?.[m] || 0); const isCompact = val >= 10000; const hasComment = t.comments?.[m] && hasUID; const monthAttrs = hasUID ? ' data-pl-element-uid="' + t.plElementUID + '" data-field="' + m + '" data-desc="' + escapeHtml(t.description || 'No Description') + '"' : ''; html += '<td class="betterbudgyt-mini-value' + (isCompact ? ' compact-value' : '') + (hasUID ? ' clickable-comment' : '') + (hasComment ? ' has-comment' : '') + '"' + monthAttrs + '>' + formatNumber(t.monthly?.[m] || 0) + '</td>'; });
           html += '<td class="betterbudgyt-mini-total' + (hasUID ? ' clickable-comment' : '') + (totalHasComment ? ' has-comment' : '') + '"' + totalAttrs + '>' + formatNumber(t.total || 0) + '</td></tr>';
@@ -1219,7 +1227,8 @@
         refreshBtn.disabled = true;
         
         try {
-          const newComparisonData = await openDatasheetsParallel(cell1Data, cell2Data, true);
+          const result = await openDatasheetsParallel(cell1Data, cell2Data, true);
+          const newComparisonData = result.data;
           newComparisonData.accountName = comparisonData.accountName;
           newComparisonData._refreshData = comparisonData._refreshData;
           
