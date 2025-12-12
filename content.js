@@ -37,6 +37,19 @@
       }
     }
     
+    // Check for file attachment icon click
+    const fileIcon = event.target.closest('.betterbudgyt-file-icon');
+    if (fileIcon) {
+      const folderName = fileIcon.dataset.folder;
+      const dataHref = fileIcon.dataset.href;
+      if (folderName) {
+        event.stopPropagation();
+        event.preventDefault();
+        comparison.modal.downloadAttachedFile(folderName, dataHref);
+        return;
+      }
+    }
+    
     // Check for clickable comment cell click
     const commentCell = event.target.closest('.clickable-comment');
     if (commentCell) {

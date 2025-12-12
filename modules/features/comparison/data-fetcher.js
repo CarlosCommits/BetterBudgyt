@@ -530,6 +530,7 @@
         dataType,
         budgetId,
         budgetYear,
+        dataHref,  // Store for file downloads
         categoryUID: parameters.CategoryUID || parameters.categoryUID,
         groupedcategory: parameters.groupedcategory,
         departments: [],

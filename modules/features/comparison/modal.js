@@ -12,6 +12,23 @@
   const { cleanupMinimizedTabsContainer, showNoteModal } = window.BetterBudgyt.ui.modals;
   const state = window.BetterBudgyt.state;
 
+  // Download attached file - primes session then opens download URL
+  async function downloadAttachedFile(folderName, dataHref) {
+    try {
+      // Prime the budget session first if we have dataHref
+      if (dataHref) {
+        const baseUrl = window.location.origin;
+        await fetch(baseUrl + dataHref, { method: 'GET', credentials: 'same-origin' });
+      }
+      // Open download - correct URL format is /Budget/DownloadSubCatDocument/{uuid}
+      const downloadUrl = '/Budget/DownloadSubCatDocument/' + encodeURIComponent(folderName);
+      window.open(downloadUrl, '_blank');
+    } catch (e) {
+      console.error('Failed to download file:', e);
+      alert('Failed to download file. Please try again.');
+    }
+  }
+
   // Generate transaction details for a department
   function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
     let html = '<div class="betterbudgyt-transactions-grid">';
@@ -37,7 +54,7 @@
       `;
       deptData.dataset1.transactions.forEach(t => {
         const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
-        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>` : '';
+        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" data-folder="${escapeHtml(t.fileAttachment.folderName)}" data-href="${escapeHtml(comparisonData.dataset1.dataHref || '')}" title="Click to download file">📎</span>` : '';
         const hasUID = !!t.plElementUID;
         const descHasComment = t.comments?.description && hasUID;
         const vendorHasComment = t.comments?.vendor && hasUID;
@@ -89,7 +106,7 @@
       `;
       deptData.dataset2.transactions.forEach(t => {
         const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
-        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>` : '';
+        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" data-folder="${escapeHtml(t.fileAttachment.folderName)}" data-href="${escapeHtml(comparisonData.dataset2.dataHref || '')}" title="Click to download file">📎</span>` : '';
         const hasUID = !!t.plElementUID;
         const descHasComment = t.comments?.description && hasUID;
         const vendorHasComment = t.comments?.vendor && hasUID;
@@ -544,6 +561,13 @@
         if (note) { event.stopPropagation(); event.preventDefault(); showNoteModal(desc, note); return; }
       }
       
+      const fileIcon = event.target.closest('.betterbudgyt-file-icon');
+      if (fileIcon) {
+        const folderName = fileIcon.dataset.folder;
+        const dataHref = fileIcon.dataset.href;
+        if (folderName) { event.stopPropagation(); event.preventDefault(); downloadAttachedFile(folderName, dataHref); return; }
+      }
+      
       const commentCell = event.target.closest('.clickable-comment');
       if (commentCell) {
         const plElementUID = commentCell.dataset.plElementUid;
@@ -552,6 +576,22 @@
         if (plElementUID && field) { event.stopPropagation(); fetchAndShowComment(plElementUID, field, desc); }
       }
     });
+    
+    async function downloadAttachedFile(folderName, dataHref) {
+      try {
+        // Prime the budget session first if we have dataHref
+        if (dataHref) {
+          const baseUrl = window.location.origin;
+          await fetch(baseUrl + dataHref, { method: 'GET', credentials: 'same-origin' });
+        }
+        // Open download - correct URL format is /Budget/DownloadSubCatDocument/{uuid}
+        const downloadUrl = '/Budget/DownloadSubCatDocument/' + encodeURIComponent(folderName);
+        window.open(downloadUrl, '_blank');
+      } catch (e) {
+        console.error('Failed to download file:', e);
+        alert('Failed to download file. Please try again.');
+      }
+    }
     
     async function fetchAndShowComment(plElementUID, field, desc) {
       const fieldMapping = { 'description': 'Description', 'vendor': 'Vendor', 'Apr': 'P1', 'May': 'P2', 'Jun': 'P3', 'Jul': 'P4', 'Aug': 'P5', 'Sep': 'P6', 'Oct': 'P7', 'Nov': 'P8', 'Dec': 'P9', 'Jan': 'P10', 'Feb': 'P11', 'Mar': 'P12' };
@@ -604,7 +644,7 @@
         html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
         deptData.dataset1.transactions.forEach(t => {
           const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
-          const fileIcon = t.fileAttachment?.hasFile ? '<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>' : '';
+          const fileIcon = t.fileAttachment?.hasFile ? '<span class="betterbudgyt-file-icon" data-folder="' + escapeHtml(t.fileAttachment.folderName) + '" data-href="' + escapeHtml(comparisonData.dataset1.dataHref || '') + '" title="Click to download file">📎</span>' : '';
           const hasUID = !!t.plElementUID;
           const descHasComment = t.comments?.description && hasUID;
           const vendorHasComment = t.comments?.vendor && hasUID;
@@ -630,7 +670,7 @@
         html += '<th class="betterbudgyt-total-col">Total</th></tr></thead><tbody>';
         deptData.dataset2.transactions.forEach(t => {
           const noteIcon = t.note ? '<span class="betterbudgyt-note-icon" data-note="' + escapeHtml(t.note) + '" data-desc="' + escapeHtml(t.description || 'No Description') + '" title="Click to view note">📝</span>' : '';
-          const fileIcon = t.fileAttachment?.hasFile ? '<span class="betterbudgyt-file-icon" title="File attached" onclick="event.stopPropagation();">📎</span>' : '';
+          const fileIcon = t.fileAttachment?.hasFile ? '<span class="betterbudgyt-file-icon" data-folder="' + escapeHtml(t.fileAttachment.folderName) + '" data-href="' + escapeHtml(comparisonData.dataset2.dataHref || '') + '" title="Click to download file">📎</span>' : '';
           const hasUID = !!t.plElementUID;
           const descHasComment = t.comments?.description && hasUID;
           const vendorHasComment = t.comments?.vendor && hasUID;
@@ -1360,7 +1400,8 @@
     generateComparisonTable,
     exportComparisonToExcel,
     openDepartmentInNewTab,
-    showComparisonModal
+    showComparisonModal,
+    downloadAttachedFile
   };
 
 })();
