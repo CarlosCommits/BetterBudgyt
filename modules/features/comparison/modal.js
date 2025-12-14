@@ -440,7 +440,12 @@
     .betterbudgyt-note-modal-close:hover { background: #e2e8f0; color: #1e293b; }
     .betterbudgyt-note-modal-body { padding: 20px; }
     .betterbudgyt-note-modal-item { font-size: 14px; color: #334155; margin-bottom: 8px; }
-    .betterbudgyt-note-modal-content { background: #fefce8; border-left: 4px solid #eab308; padding: 16px; border-radius: 0 8px 8px 0; margin-top: 16px; font-size: 14px; line-height: 1.6; color: #1e293b; white-space: pre-wrap; }
+    .betterbudgyt-note-modal-content { background: #fefce8; border-left: 4px solid #eab308; padding: 16px; border-radius: 0 8px 8px 0; margin-top: 16px; font-size: 14px; line-height: 1.6; color: #1e293b; }
+    .betterbudgyt-note-entry { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #fde68a; }
+    .betterbudgyt-note-entry:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .betterbudgyt-note-author { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 13px; color: #1e293b; }
+    .betterbudgyt-note-avatar { width: 24px; height: 24px; border-radius: 50%; }
+    .betterbudgyt-note-text { margin-left: 32px; color: #334155; }
     .betterbudgyt-note-icon { cursor: pointer; font-size: 13px; margin-right: 6px; opacity: 0.85; display: inline-block; vertical-align: middle; }
     .betterbudgyt-note-icon:hover { opacity: 1; }
     .betterbudgyt-mini-table tr.has-note { background: #fefce8 !important; }
@@ -540,13 +545,47 @@
       const existingModal = document.querySelector('.betterbudgyt-note-modal-overlay');
       if (existingModal) existingModal.remove();
       
-      let author = '', noteContent = note;
-      const match = note.match(/^\\[([^\\]]+)\\]\\s*(.*)$/s);
-      if (match) { author = match[1]; noteContent = match[2]; }
+      // Parse Budgyt note HTML format: <br/><img.../><b>Author Date</b> : note text
+      // Each note starts with <br/> followed by <img.../><b>Author Date</b> : text
+      // We need to render this as proper HTML, not escaped text
+      
+      // First, decode any HTML entities in the note (in case it was double-encoded)
+      let decodedNote = note;
+      if (note.includes('&lt;') || note.includes('&gt;')) {
+        const decoder = document.createElement('textarea');
+        decoder.innerHTML = note;
+        decodedNote = decoder.value;
+      }
+      
+      // Build the notes content HTML - render the Budgyt format properly
+      // The note HTML contains <br/><img/><b>Author Date</b> : text patterns
+      // We'll render it directly but style it nicely
+      let notesHtml = '';
+      
+      // Split notes by the <br/> pattern that precedes each note entry
+      // Pattern: <br/><img class='img-circle layout-menu-image' src=... /><b >Author Date</b > : text
+      // Note: Budgyt sometimes adds spaces inside tags like <b > and </b >
+      const notePattern = /<br\\s*\\/?><img[^>]*>\\s*<b\\s*>([^<]+)<\\/b\\s*>\\s*:\\s*/gi;
+      const parts = decodedNote.split(notePattern);
+      
+      // If we have matches, parts will be: ['', 'Author1 Date1', 'text1', 'Author2 Date2', 'text2', ...]
+      if (parts.length > 1) {
+        // Skip first empty part, then process pairs of (author, text)
+        for (let i = 1; i < parts.length; i += 2) {
+          const author = (parts[i] || '').trim();
+          const text = (parts[i + 1] || '').trim();
+          // Get just the text until the next note starts (or end)
+          const cleanText = text.split(/<br\\s*\\/?>\\s*<img/i)[0].trim();
+          notesHtml += '<div class="betterbudgyt-note-entry"><div class="betterbudgyt-note-author"><img class="betterbudgyt-note-avatar" src="/assets/admin/layout/img/user-male-placeholder.png" /><strong>' + escapeForModal(author) + '</strong></div><div class="betterbudgyt-note-text">' + escapeForModal(cleanText) + '</div></div>';
+        }
+      } else {
+        // Fallback: just show the note content as-is (escaped for safety)
+        notesHtml = '<div class="betterbudgyt-note-entry"><div class="betterbudgyt-note-text">' + escapeForModal(decodedNote) + '</div></div>';
+      }
       
       const overlay = document.createElement('div');
       overlay.className = 'betterbudgyt-note-modal-overlay';
-      overlay.innerHTML = '<div class="betterbudgyt-note-modal"><div class="betterbudgyt-note-modal-header"><div class="betterbudgyt-note-modal-title">📝 Note</div><button class="betterbudgyt-note-modal-close">&times;</button></div><div class="betterbudgyt-note-modal-body"><div class="betterbudgyt-note-modal-item"><strong>Item:</strong> ' + escapeForModal(description) + '</div>' + (author ? '<div class="betterbudgyt-note-modal-item"><strong>By:</strong> ' + escapeForModal(author) + '</div>' : '') + '<div class="betterbudgyt-note-modal-content">' + escapeForModal(noteContent) + '</div></div></div>';
+      overlay.innerHTML = '<div class="betterbudgyt-note-modal"><div class="betterbudgyt-note-modal-header"><div class="betterbudgyt-note-modal-title">📝 Notes</div><button class="betterbudgyt-note-modal-close">&times;</button></div><div class="betterbudgyt-note-modal-body"><div class="betterbudgyt-note-modal-item"><strong>Item:</strong> ' + escapeForModal(description) + '</div><div class="betterbudgyt-note-modal-content">' + notesHtml + '</div></div></div>';
       
       overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target.closest('.betterbudgyt-note-modal-close')) overlay.remove(); });
       document.addEventListener('keydown', function escHandler(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); } });

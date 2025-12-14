@@ -166,55 +166,23 @@
       }
       
       // Extract note from hdnComment hidden field
+      // The note is stored as HTML-encoded content that we need to preserve for proper display
       let note = '';
       const commentCell = row.querySelector('td#hdnComment, td[id="hdnComment"]');
       if (commentCell) {
         const rawComment = commentCell.innerHTML || commentCell.textContent;
         if (rawComment && rawComment.trim()) {
+          // Decode HTML entities to get the actual HTML structure
+          // The content is like: &lt;br/&gt;&lt;img...&gt;&lt;b &gt;Author Date&lt;/b &gt;: text
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = rawComment;
+          // textContent decodes entities, giving us the raw HTML string
           const decodedHtml = tempDiv.textContent || tempDiv.innerText;
           
-          const noteMatch = decodedHtml.match(/<b>([^<]+)<\/b>\s*(.+)$/i);
-          let noteText = '';
-          if (noteMatch) {
-            noteText = noteMatch[2].trim();
-          } else {
-            const stripDiv = document.createElement('div');
-            stripDiv.innerHTML = decodedHtml;
-            noteText = stripDiv.textContent || stripDiv.innerText || '';
-            noteText = noteText.trim();
-          }
-          noteText = noteText.replace(/^:\s*/, '');
-          
-          let author = '';
-          let modifiedDate = '';
-          const modifiedByDiv = row.querySelector('.modifiedByUserName-modal, #modifiedByUserNameDiv');
-          if (modifiedByDiv) {
-            const authorEl = modifiedByDiv.querySelector('.datModifiedBy, b.datModifiedBy');
-            const dateEl = modifiedByDiv.querySelector('.datModifiedDate');
-            if (authorEl) {
-              author = authorEl.textContent.replace(/:$/, '').trim();
-            }
-            if (dateEl) {
-              const dateStr = dateEl.textContent;
-              try {
-                const date = new Date(dateStr);
-                modifiedDate = date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
-              } catch (e) {
-                modifiedDate = dateStr;
-              }
-            }
-          }
-          
-          if (noteText) {
-            if (author && modifiedDate) {
-              note = `[${author} ${modifiedDate}] ${noteText}`;
-            } else if (author) {
-              note = `[${author}] ${noteText}`;
-            } else {
-              note = noteText;
-            }
+          // Store the full HTML structure for the note modal to parse and display
+          // The modal will handle parsing <br/><img.../><b>Author Date</b> : text format
+          if (decodedHtml && decodedHtml.trim()) {
+            note = decodedHtml.trim();
           }
         }
       }
