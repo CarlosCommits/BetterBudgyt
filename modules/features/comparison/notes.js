@@ -827,11 +827,13 @@
     
     // Step 9: Send the request
     // Use referrer option to set the proper DataInput page URL as the referrer
+    // Use redirect: 'error' to catch 302 redirects as errors instead of following them
     const response = await fetch('/Budget/SaveDataInput', {
       method: 'POST',
       credentials: 'same-origin',
       referrer: refererUrl,
       referrerPolicy: 'unsafe-url',
+      redirect: 'manual', // Don't follow redirects - a 302 means an error occurred
       headers: {
         'Content-Type': 'application/json; charset=UTF-8',
         'Accept': 'text/html, */*; q=0.01',
@@ -840,6 +842,13 @@
       },
       body: JSON.stringify(payload)
     });
+    
+    console.log('SaveDataInput response status:', response.status, 'type:', response.type);
+    
+    // Check for redirect (302) - this indicates an error on the server side
+    if (response.type === 'opaqueredirect' || response.status === 302 || response.status === 301) {
+      throw new Error('Server rejected the request (redirect to error page)');
+    }
     
     if (!response.ok) {
       throw new Error(`Server error: HTTP ${response.status}`);
@@ -862,6 +871,11 @@
       if (responseText.toLowerCase().includes('read only')) {
         throw new Error('This datasheet is read-only');
       }
+    }
+    
+    // Check for CustomError page content (server error page)
+    if (responseText.includes('CustomError') || responseText.includes('aspxerrorpath')) {
+      throw new Error('Server error occurred while saving note');
     }
     
     // Return the full note HTML so the caller can update the cache
