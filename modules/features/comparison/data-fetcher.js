@@ -533,6 +533,10 @@
         dataHref,  // Store for file downloads
         categoryUID: parameters.CategoryUID || parameters.categoryUID,
         groupedcategory: parameters.groupedcategory,
+        // storesFull keeps the complete Stores list from the request (includes zero rows)
+        storesFull: parameters.Stores || parameters.stores || storeCsv,
+        // stores is the filtered CSV we actually fetched (may exclude zero rows)
+        stores: storeCsv,
         departments: [],
         transactions: [],
         totals: {},

@@ -41,11 +41,12 @@
         <span class="betterbudgyt-context-menu-icon">👁️</span>
         View Comments
       </div>
+      <div class="betterbudgyt-context-menu-divider"></div>
+      <div class="betterbudgyt-context-menu-item" data-action="add-note">
+        <span class="betterbudgyt-context-menu-icon">📝</span>
+        Add Note
+      </div>
     `;
-    
-    // Position the menu
-    menu.style.left = `${event.pageX}px`;
-    menu.style.top = `${event.pageY}px`;
     
     // Store the context data
     menu.dataset.cellData = JSON.stringify(cellData);
@@ -53,6 +54,31 @@
     menu.dataset.datasetInfo = JSON.stringify(datasetInfo);
     
     document.body.appendChild(menu);
+    
+    // Position the menu with viewport awareness to prevent cutoff
+    const menuRect = menu.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    
+    let left = event.pageX;
+    let top = event.pageY;
+    
+    // Check if menu would overflow right edge
+    if (event.clientX + menuRect.width > viewportWidth) {
+      left = event.pageX - menuRect.width;
+    }
+    
+    // Check if menu would overflow bottom edge
+    if (event.clientY + menuRect.height > viewportHeight) {
+      top = event.pageY - menuRect.height;
+    }
+    
+    // Ensure menu doesn't go off-screen to the left or top
+    if (left < window.scrollX) left = window.scrollX + 5;
+    if (top < window.scrollY) top = window.scrollY + 5;
+    
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
     
     // Handle menu item clicks
     menu.addEventListener('click', (e) => {
@@ -66,6 +92,12 @@
         showAddCommentModal(cellData, transactionData, datasetInfo);
       } else if (action === 'view-comments') {
         viewExistingComments(cellData, transactionData, datasetInfo);
+      } else if (action === 'add-note') {
+        // Use the notes module to add a note
+        const notes = window.BetterBudgyt.features.comparison.notes;
+        if (notes) {
+          notes.showAddNoteModal(transactionData, datasetInfo);
+        }
       }
     });
     
@@ -648,6 +680,12 @@
       
       .betterbudgyt-context-menu-icon {
         font-size: 14px;
+      }
+      
+      .betterbudgyt-context-menu-divider {
+        height: 1px;
+        background: #e2e8f0;
+        margin: 4px 0;
       }
       
       /* Add Comment Modal */

@@ -35,6 +35,7 @@
         "modules/features/comparison/selection.js",
         "modules/features/comparison/modal.js",
         "modules/features/comparison/comments.js",
+        "modules/features/comparison/notes.js",
         "modules/observers.js",
         "content.js"
       ],
