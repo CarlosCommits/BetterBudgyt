@@ -30,6 +30,12 @@
     // Remove any existing context menu
     hideContextMenu();
     
+    // Check if this dataset is editable for add transaction option
+    const transactions = window.BetterBudgyt.features.comparison.transactions;
+    const isEditable = transactions?.isDatasetEditable(datasetInfo);
+    const unlockedMonths = transactions?.getUnlockedMonths(datasetInfo) || [];
+    const canAddTransaction = isEditable && unlockedMonths.length > 0;
+    
     const menu = document.createElement('div');
     menu.className = 'betterbudgyt-context-menu';
     menu.innerHTML = `
@@ -46,6 +52,13 @@
         <span class="betterbudgyt-context-menu-icon">📝</span>
         Add Note
       </div>
+      ${canAddTransaction ? `
+      <div class="betterbudgyt-context-menu-divider"></div>
+      <div class="betterbudgyt-context-menu-item" data-action="add-transaction">
+        <span class="betterbudgyt-context-menu-icon">➕</span>
+        Add Transaction
+      </div>
+      ` : ''}
     `;
     
     // Store the context data
@@ -97,6 +110,24 @@
         const notes = window.BetterBudgyt.features.comparison.notes;
         if (notes) {
           notes.showAddNoteModal(transactionData, datasetInfo);
+        }
+      } else if (action === 'add-transaction') {
+        // Use the transactions module to add a transaction
+        const transactions = window.BetterBudgyt.features.comparison.transactions;
+        const state = window.BetterBudgyt.state;
+        if (transactions && state.currentComparisonData) {
+          // Get hideMonths state from modal toggle
+          const hideMonthsToggle = document.querySelector('#hideMonthsToggle');
+          const hideMonths = hideMonthsToggle ? hideMonthsToggle.checked : false;
+          
+          // Build department info from transaction context
+          const departmentInfo = {
+            storeUID: transactionData.storeUID,
+            departmentName: transactionData.departmentName,
+            deptUID: datasetInfo.deptUID
+          };
+          
+          transactions.showAddTransactionModal(departmentInfo, datasetInfo, state.currentComparisonData, hideMonths);
         }
       }
     });

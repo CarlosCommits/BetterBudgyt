@@ -181,9 +181,46 @@
     return state.storeNameCache;
   }
 
-  // Prime budget session with GET request
+  // Period code to month name mapping
+  const PERIOD_TO_MONTH = {
+    'P01': 'Apr', 'P02': 'May', 'P03': 'Jun', 'P04': 'Jul',
+    'P05': 'Aug', 'P06': 'Sep', 'P07': 'Oct', 'P08': 'Nov',
+    'P09': 'Dec', 'P10': 'Jan', 'P11': 'Feb', 'P12': 'Mar'
+  };
+
+  // Convert period codes like "P01, P02, P03" to month names ["Apr", "May", "Jun"]
+  function parseLockedPeriods(lockedMonthsValue, inactiveMonthsValue) {
+    const lockedMonths = new Set();
+    
+    // Parse locked months
+    if (lockedMonthsValue && lockedMonthsValue.trim()) {
+      lockedMonthsValue.split(',').forEach(p => {
+        const period = p.trim();
+        if (PERIOD_TO_MONTH[period]) {
+          lockedMonths.add(PERIOD_TO_MONTH[period]);
+        }
+      });
+    }
+    
+    // Parse inactive months (also treated as locked)
+    if (inactiveMonthsValue && inactiveMonthsValue.trim()) {
+      inactiveMonthsValue.split(',').forEach(p => {
+        const period = p.trim();
+        if (PERIOD_TO_MONTH[period]) {
+          lockedMonths.add(PERIOD_TO_MONTH[period]);
+        }
+      });
+    }
+    
+    return Array.from(lockedMonths);
+  }
+
+  // Prime budget session with GET request and extract lock/edit metadata
+  // Returns: { success: boolean, lockedMonths: string[], isEditable: boolean, budgetName: string }
   async function primeBudgetSession(dataHref) {
-    if (!dataHref) return;
+    if (!dataHref) {
+      return { success: false, lockedMonths: [], isEditable: false, budgetName: '' };
+    }
     
     console.log(`Priming budget session with GET request to: ${dataHref}`);
     
@@ -194,12 +231,55 @@
       });
       
       console.log(`Prime session response status: ${response.status}`);
+      
+      if (!response.ok) {
+        console.warn('Failed to prime session, status:', response.status);
+        return { success: false, lockedMonths: [], isEditable: false, budgetName: '' };
+      }
+      
+      // Parse the HTML response to extract lock metadata
+      const html = await response.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      
+      // Extract locked months from hidden fields
+      const lockedMonthsField = doc.querySelector('#hdnLockedMonths');
+      const lockedMonthsValue = lockedMonthsField?.value || '';
+      
+      const inactiveMonthsField = doc.querySelector('#hdnInactiveMonths');
+      const inactiveMonthsValue = inactiveMonthsField?.value || '';
+      
+      const lockedMonths = parseLockedPeriods(lockedMonthsValue, inactiveMonthsValue);
+      
+      // Check edit permissions - user needs both roles to be able to edit
+      const canEditBudget = doc.querySelector('#hdnUserInEditBudgetRole')?.value === 'True';
+      const canEditDataPage = doc.querySelector('#hdnIsUserInEditDataPageRole')?.value === 'True';
+      const isEditable = canEditBudget && canEditDataPage;
+      
+      // Get budget name for display
+      const budgetName = doc.querySelector('#hdnBudgetName')?.value || '';
+      
+      console.log(`Session metadata: isEditable=${isEditable}, lockedMonths=[${lockedMonths.join(', ')}], budgetName=${budgetName}`);
+      
+      // Small delay to ensure session is established
       await new Promise(r => setTimeout(r, 250));
       
-      return true;
+      return { 
+        success: true, 
+        lockedMonths, 
+        isEditable,
+        budgetName,
+        // Also include raw values for debugging
+        _debug: {
+          lockedMonthsValue,
+          inactiveMonthsValue,
+          canEditBudget,
+          canEditDataPage
+        }
+      };
     } catch (error) {
       console.error('Error priming budget session:', error);
-      throw new Error(`Failed to prime budget session: ${error.message}`);
+      return { success: false, lockedMonths: [], isEditable: false, budgetName: '' };
     }
   }
 
@@ -511,9 +591,9 @@
         }
       }
       
-      // STEP 1: Prime session
-      console.log("STEP 1: Priming budget session with GET request");
-      await primeBudgetSession(dataHref);
+      // STEP 1: Prime session and extract lock/edit metadata from DataInput page
+      console.log("STEP 1: Priming budget session with GET request and extracting lock metadata");
+      const sessionData = await primeBudgetSession(dataHref);
       
       // STEP 2: Fetch StoreUIDs
       console.log(`STEP 2: Fetching StoreUIDs for ${accountName} using Level 0 request`);
@@ -541,7 +621,10 @@
         transactions: [],
         totals: {},
         grandTotals: {},
-        failedDepartments: []
+        failedDepartments: [],
+        // Editability metadata from session prime (DataInput page hidden fields)
+        isEditable: sessionData.isEditable,
+        lockedMonths: sessionData.lockedMonths
       };
       
       // STEP 4: Process departments
@@ -646,6 +729,9 @@
           });
         }
       }
+      
+      // Log editability info (already set from session prime)
+      console.log(`Dataset editability: isEditable=${result.isEditable}, lockedMonths=[${result.lockedMonths.join(', ')}]`);
       
       // Calculate grand totals
       const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
