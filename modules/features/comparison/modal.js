@@ -324,117 +324,16 @@
   }
 
   // Export comparison to Excel/CSV
-  async function exportComparisonToExcel(comparisonData, hideMonths = false, filterMode = 'all') {
-    const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-    const accountName = comparisonData.accountName || 'Comparison';
-    
-    const includeDataset1 = filterMode === 'all' || filterMode === 'dataset1';
-    const includeDataset2 = filterMode === 'all' || filterMode === 'dataset2';
-    
-    const departmentMap = new Map();
-    (comparisonData.dataset1.departments || []).forEach(dept => {
-      const key = dept.departmentName || dept.storeUID;
-      departmentMap.set(key, { name: dept.departmentName, dataset1: dept, dataset2: null });
-    });
-    (comparisonData.dataset2.departments || []).forEach(dept => {
-      const key = dept.departmentName || dept.storeUID;
-      if (departmentMap.has(key)) {
-        departmentMap.get(key).dataset2 = dept;
-      } else {
-        departmentMap.set(key, { name: dept.departmentName, dataset1: null, dataset2: dept });
-      }
-    });
-    
-    const baseHeaders = ['Department', 'Dataset', 'Description', 'Vendor'];
-    const monthHeaders = hideMonths ? [] : months;
-    const headers = [...baseHeaders, ...monthHeaders, 'Total', 'Notes'];
-    
-    const allRows = [headers];
-    
-    departmentMap.forEach((deptData, deptName) => {
-      if (includeDataset1 && deptData.dataset1?.transactions?.length > 0) {
-        deptData.dataset1.transactions.forEach(t => {
-          const row = [
-            stripNumberPrefix(deptName),
-            comparisonData.dataset1.dataType,
-            t.description || 'No Description',
-            stripNumberPrefix(t.vendor) || '-'
-          ];
-          if (!hideMonths) {
-            months.forEach(m => row.push(t.monthly?.[m] || 0));
-          }
-          row.push(t.total || 0);
-          row.push(t.note || '');
-          allRows.push(row);
-        });
-      }
-      
-      if (includeDataset2 && deptData.dataset2?.transactions?.length > 0) {
-        deptData.dataset2.transactions.forEach(t => {
-          const row = [
-            stripNumberPrefix(deptName),
-            comparisonData.dataset2.dataType,
-            t.description || 'No Description',
-            stripNumberPrefix(t.vendor) || '-'
-          ];
-          if (!hideMonths) {
-            months.forEach(m => row.push(t.monthly?.[m] || 0));
-          }
-          row.push(t.total || 0);
-          row.push(t.note || '');
-          allRows.push(row);
-        });
-      }
-    });
-    
-    // Use bundled SheetJS library, fallback to CSV if unavailable
-    const useXlsx = !!window.XLSX;
-    
-    const filterSuffix = filterMode === 'all' ? '' : `_${filterMode === 'dataset1' ? 'actuals' : 'budget'}`;
-    const baseFilename = `comparison_${accountName.replace(/[^a-z0-9]/gi, '_')}${filterSuffix}_${new Date().toISOString().split('T')[0]}`;
-    
-    if (useXlsx && window.XLSX) {
-      const wb = XLSX.utils.book_new();
-      
-      const dataset1Total = comparisonData.dataset1.grandTotals?.total || comparisonData.dataset1.totals?.total || 0;
-      const dataset2Total = comparisonData.dataset2.grandTotals?.total || comparisonData.dataset2.totals?.total || 0;
-      
-      const summaryData = [
-        ['Datasheet Comparison'],
-        ['Account', accountName],
-        ['Export Date', new Date().toLocaleDateString()],
-        [],
-        ['Summary']
-      ];
-      if (includeDataset1) summaryData.push([comparisonData.dataset1.dataType, dataset1Total]);
-      if (includeDataset2) summaryData.push([comparisonData.dataset2.dataType, dataset2Total]);
-      if (includeDataset1 && includeDataset2) summaryData.push(['Variance', dataset1Total - dataset2Total]);
-      
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(allRows), 'Transactions');
-      
-      XLSX.writeFile(wb, `${baseFilename}.xlsx`);
-    } else {
-      const escapeCSV = (val) => {
-        if (val === null || val === undefined) return '';
-        const str = String(val);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
-      
-      const csvContent = allRows.map(row => row.map(escapeCSV).join(',')).join('\r\n');
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${baseFilename}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+  function exportComparisonToExcel(comparisonData, hideMonths = false, filterMode = 'all') {
+    const excelExport = window.BetterBudgyt.features.comparison.excelExport;
+    if (!excelExport || !excelExport.exportComparisonToExcel) {
+      alert('Excel export module not loaded. Please reload the page and try again.');
+      return;
     }
+
+    // New export always creates two tabs (Total + Months).
+    // We keep `hideMonths` for backward compatibility with callers.
+    excelExport.exportComparisonToExcel(comparisonData, filterMode);
   }
 
   // Open department details in a new tab
