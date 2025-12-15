@@ -34,6 +34,7 @@
         "modules/features/comparison/data-fetcher.js",
         "modules/features/comparison/selection.js",
         "modules/features/comparison/transactions.js",
+        "modules/features/comparison/excel-export.js",
         "modules/features/comparison/modal.js",
         "modules/features/comparison/comments.js",
         "modules/features/comparison/notes.js",
