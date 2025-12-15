@@ -1094,6 +1094,29 @@
       console.warn('Table container not found in modal');
       return;
     }
+
+    // Update summary cards (top totals + variance)
+    const summaryCards = modal.querySelectorAll('.betterbudgyt-summary-card');
+    if (summaryCards.length >= 3) {
+      const d1Value = summaryCards[0].querySelector('.betterbudgyt-summary-card-value');
+      const d1Subtitle = summaryCards[0].querySelector('.betterbudgyt-summary-card-subtitle');
+      const d1Total = comparisonData.dataset1?.grandTotals?.total ?? comparisonData.dataset1?.totals?.total ?? 0;
+      const d1DeptCount = comparisonData.dataset1?.departments?.length || 0;
+      const d1TxCount = comparisonData.dataset1?.transactions?.length || 0;
+      if (d1Value) d1Value.textContent = formatNumber(d1Total);
+      if (d1Subtitle) d1Subtitle.textContent = `${d1DeptCount} departments · ${d1TxCount} transactions`;
+
+      const d2Value = summaryCards[1].querySelector('.betterbudgyt-summary-card-value');
+      const d2Subtitle = summaryCards[1].querySelector('.betterbudgyt-summary-card-subtitle');
+      const d2Total = comparisonData.dataset2?.grandTotals?.total ?? comparisonData.dataset2?.totals?.total ?? 0;
+      const d2DeptCount = comparisonData.dataset2?.departments?.length || 0;
+      const d2TxCount = comparisonData.dataset2?.transactions?.length || 0;
+      if (d2Value) d2Value.textContent = formatNumber(d2Total);
+      if (d2Subtitle) d2Subtitle.textContent = `${d2DeptCount} departments · ${d2TxCount} transactions`;
+
+      const diffValue = summaryCards[2].querySelector('.betterbudgyt-summary-card-value');
+      if (diffValue) diffValue.textContent = formatNumber(d1Total - d2Total);
+    }
     
     // Preserve expanded department states
     const expandedDepts = [];
