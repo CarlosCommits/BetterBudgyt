@@ -76,27 +76,22 @@
     const existingModal = document.querySelector('.betterbudgyt-add-tx-overlay');
     if (existingModal) existingModal.remove();
     
-    // Build month inputs HTML based on view mode
-    let amountFieldsHtml = '';
-    
-    if (hideMonths) {
-      // Total-only mode with distribution preview
-      amountFieldsHtml = `
-        <div class="betterbudgyt-add-tx-total-section">
+    // Build both amount entry UIs (toggleable within the modal)
+    const totalSectionHtml = `
+        <div class="betterbudgyt-add-tx-total-section" style="${hideMonths ? '' : 'display:none;'}">
           <div class="betterbudgyt-add-tx-field">
             <label>Total Amount <span class="required">*</span></label>
             <input type="number" class="betterbudgyt-add-tx-total-input" placeholder="0" min="1" step="1">
             <div class="betterbudgyt-add-tx-distribution-info">
               Will be distributed across ${unlockedMonths.length} unlocked month(s): ${unlockedMonths.join(', ')}
             </div>
-            <div class="betterbudgyt-add-tx-distribution-preview"></div>
+            <div class="betterbudgyt-add-tx-distribution-preview" style="display:none;"></div>
           </div>
         </div>
       `;
-    } else {
-      // Individual month inputs
-      amountFieldsHtml = `
-        <div class="betterbudgyt-add-tx-months-section">
+
+    const monthsSectionHtml = `
+        <div class="betterbudgyt-add-tx-months-section" style="${hideMonths ? 'display:none;' : ''}">
           <div class="betterbudgyt-add-tx-field">
             <label>Monthly Amounts <span class="required">*</span> <small>(at least one required)</small></label>
             <div class="betterbudgyt-add-tx-month-grid">
@@ -122,7 +117,8 @@
           </div>
         </div>
       `;
-    }
+
+    const amountFieldsHtml = `${totalSectionHtml}${monthsSectionHtml}`;
     
     // Check if other dataset is also editable (for selector)
     // Only show selector if allowDatasetSwitch is true AND other dataset is editable
@@ -130,10 +126,12 @@
     const otherEditable = isDatasetEditable(otherDataset);
     const showDatasetSelector = allowDatasetSwitch && otherEditable;
     
+    const initialDatasetIndex = datasetInfo?.datasetIndex === 1 ? 1 : 2;
+
     const overlay = document.createElement('div');
     overlay.className = 'betterbudgyt-add-tx-overlay';
     overlay.innerHTML = `
-      <div class="betterbudgyt-add-tx-modal">
+      <div class="betterbudgyt-add-tx-modal bb-addtx-dataset${initialDatasetIndex}">
         <div class="betterbudgyt-add-tx-header">
           <span class="betterbudgyt-add-tx-title">Add Transaction</span>
           <button class="betterbudgyt-add-tx-close">&times;</button>
@@ -148,19 +146,26 @@
             </div>
           </div>
           
-          ${showDatasetSelector ? `
-          <div class="betterbudgyt-add-tx-field">
-            <label>Add to Dataset</label>
-            <select class="betterbudgyt-add-tx-dataset-select">
-              <option value="1" ${datasetInfo.datasetIndex === 1 ? 'selected' : ''}>${escapeHtml(comparisonData.dataset1.dataType)}</option>
-              <option value="2" ${datasetInfo.datasetIndex === 2 ? 'selected' : ''}>${escapeHtml(comparisonData.dataset2.dataType)}</option>
-            </select>
+          <div class="betterbudgyt-add-tx-row">
+            <div class="betterbudgyt-add-tx-field betterbudgyt-add-tx-field--grow">
+              <label>${showDatasetSelector ? 'Add to Dataset' : 'Dataset'}</label>
+              ${showDatasetSelector ? `
+              <select class="betterbudgyt-add-tx-dataset-select">
+                <option value="1" ${datasetInfo.datasetIndex === 1 ? 'selected' : ''}>${escapeHtml(comparisonData.dataset1.dataType)}</option>
+                <option value="2" ${datasetInfo.datasetIndex === 2 ? 'selected' : ''}>${escapeHtml(comparisonData.dataset2.dataType)}</option>
+              </select>
+              ` : `
+              <div class="betterbudgyt-add-tx-dataset-static">${escapeHtml(datasetInfo.dataType)}</div>
+              `}
+            </div>
+            <div class="betterbudgyt-add-tx-field betterbudgyt-add-tx-field--toggle">
+              <label class="betterbudgyt-comparison-toggle-container" title="Toggle between monthly entry and total-only entry">
+                <input type="checkbox" class="betterbudgyt-add-tx-hide-months-toggle" ${hideMonths ? 'checked' : ''}>
+                <span class="betterbudgyt-comparison-toggle-slider"></span>
+                <span class="betterbudgyt-comparison-toggle-label">Hide Months</span>
+              </label>
+            </div>
           </div>
-          ` : `
-          <div class="betterbudgyt-add-tx-context-item betterbudgyt-add-tx-dataset-info">
-            <strong>Dataset:</strong> ${escapeHtml(datasetInfo.dataType)}
-          </div>
-          `}
           
           <div class="betterbudgyt-add-tx-field">
             <label>Description <span class="required">*</span></label>
@@ -208,11 +213,25 @@
       }
     };
     document.addEventListener('keydown', handleEscape);
-    
+
+    // Theme the Add Transaction modal based on target dataset (1=blue, 2=green)
+    const modalEl = overlay.querySelector('.betterbudgyt-add-tx-modal');
+    const applyAddTxTheme = (datasetIndex) => {
+      if (!modalEl) return;
+      const isDataset1 = Number(datasetIndex) === 1;
+      modalEl.classList.toggle('bb-addtx-dataset1', isDataset1);
+      modalEl.classList.toggle('bb-addtx-dataset2', !isDataset1);
+    };
+
     // Track current target dataset (may change if user switches)
     let currentTargetDataset = datasetInfo;
+    applyAddTxTheme(currentTargetDataset?.datasetIndex);
+
+    // Track current input mode within the modal (independent of main modal hideMonths toggle)
+    // true = total-only mode ("Hide Months"), false = monthly amounts
+    let currentHideMonthsMode = !!hideMonths;
     
-    // Total input with distribution preview (hideMonths mode)
+    // Total input with distribution preview
     const totalInput = overlay.querySelector('.betterbudgyt-add-tx-total-input');
     if (totalInput) {
       const previewEl = overlay.querySelector('.betterbudgyt-add-tx-distribution-preview');
@@ -229,20 +248,104 @@
         }
       });
     }
+
+    // UX: hide "0" placeholder on focus (prevents caret-over-0)
+    const setupZeroPlaceholderHideOnFocus = (inputEl) => {
+      if (!inputEl) return;
+      if (!('bbOriginalPlaceholder' in inputEl.dataset)) {
+        inputEl.dataset.bbOriginalPlaceholder = inputEl.getAttribute('placeholder') || '';
+      }
+
+      inputEl.addEventListener('focus', () => {
+        inputEl.setAttribute('placeholder', '');
+        // If there's a real value, select it for quick overwrite
+        if (inputEl.value) {
+          try { inputEl.select(); } catch (e) { /* ignore */ }
+        }
+      });
+
+      inputEl.addEventListener('blur', () => {
+        if (!inputEl.value) {
+          inputEl.setAttribute('placeholder', inputEl.dataset.bbOriginalPlaceholder || '');
+        }
+      });
+    };
+
+    if (totalInput) setupZeroPlaceholderHideOnFocus(totalInput);
     
-    // Month inputs with auto-total (months visible mode)
+    // Month inputs with auto-total
     const monthInputs = overlay.querySelectorAll('.betterbudgyt-add-tx-month-input');
+    monthInputs.forEach(setupZeroPlaceholderHideOnFocus);
+
     const totalDisplay = overlay.querySelector('.betterbudgyt-add-tx-calculated-total');
+    const recalcMonthTotal = () => {
+      if (!totalDisplay) return 0;
+      let sum = 0;
+      monthInputs.forEach(mi => {
+        if (mi.disabled) return;
+        sum += parseInt(mi.value) || 0;
+      });
+      totalDisplay.textContent = formatNumber(sum);
+      return sum;
+    };
+
     if (monthInputs.length > 0 && totalDisplay) {
       monthInputs.forEach(input => {
         input.addEventListener('input', () => {
-          let sum = 0;
-          monthInputs.forEach(mi => {
-            sum += parseInt(mi.value) || 0;
-          });
-          totalDisplay.textContent = formatNumber(sum);
+          recalcMonthTotal();
         });
       });
+    }
+
+    // In-modal toggle: switch between total-only and monthly entry
+    const modeToggle = overlay.querySelector('.betterbudgyt-add-tx-hide-months-toggle');
+    const totalSection = overlay.querySelector('.betterbudgyt-add-tx-total-section');
+    const monthsSection = overlay.querySelector('.betterbudgyt-add-tx-months-section');
+
+    const setMode = (newHideMonthsMode) => {
+      currentHideMonthsMode = !!newHideMonthsMode;
+
+      if (totalSection) totalSection.style.display = currentHideMonthsMode ? '' : 'none';
+      if (monthsSection) monthsSection.style.display = currentHideMonthsMode ? 'none' : '';
+
+      // When switching to total-only mode, derive total from monthly inputs
+      if (currentHideMonthsMode) {
+        const currentSum = recalcMonthTotal();
+        if (totalInput) {
+          totalInput.value = currentSum > 0 ? String(currentSum) : (totalInput.value || '');
+          totalInput.dispatchEvent(new Event('input'));
+        }
+        return;
+      }
+
+      // When switching to monthly mode, auto-distribute total into unlocked months
+      const totalVal = totalInput ? (parseInt(totalInput.value) || 0) : 0;
+      if (totalVal > 0 && monthInputs.length > 0) {
+        const anyMonthHasValue = Array.from(monthInputs).some(mi => !mi.disabled && (parseInt(mi.value) || 0) > 0);
+        if (!anyMonthHasValue) {
+          const unlockedMonths = getUnlockedMonths(currentTargetDataset);
+          const dist = distributeAmountAcrossMonths(totalVal, unlockedMonths);
+          monthInputs.forEach(mi => {
+            const month = mi.dataset.month;
+            if (!mi.disabled) {
+              mi.value = String(dist[month] || 0);
+            } else {
+              mi.value = '0';
+            }
+          });
+          recalcMonthTotal();
+        }
+      }
+    };
+
+    if (modeToggle) {
+      // Ensure checkbox reflects initial mode
+      modeToggle.checked = currentHideMonthsMode;
+      modeToggle.addEventListener('change', () => {
+        setMode(modeToggle.checked);
+      });
+      // Apply initial visibility (in case styles were overridden)
+      setMode(currentHideMonthsMode);
     }
     
     // Dataset selector change handler
@@ -254,6 +357,8 @@
         currentTargetDataset = selectedIndex === 1 
           ? { ...comparisonData.dataset1, datasetIndex: 1 }
           : { ...comparisonData.dataset2, datasetIndex: 2 };
+
+        applyAddTxTheme(currentTargetDataset?.datasetIndex);
         
         const newLockedMonths = getLockedMonths(currentTargetDataset);
         const newUnlockedMonths = getUnlockedMonths(currentTargetDataset);
@@ -263,6 +368,7 @@
           const month = input.dataset.month;
           const isLocked = newLockedMonths.has(month);
           input.disabled = isLocked;
+          if (isLocked) input.value = '0';
           const itemEl = input.closest('.betterbudgyt-add-tx-month-item');
           if (itemEl) {
             itemEl.classList.toggle('locked', isLocked);
@@ -282,6 +388,13 @@
         // Recalculate distribution preview if there's a value
         if (totalInput && totalInput.value) {
           totalInput.dispatchEvent(new Event('input'));
+        }
+
+        // Keep totals / auto-distribution consistent with current mode
+        recalcMonthTotal();
+        if (!currentHideMonthsMode) {
+          // If user is in monthly mode and only has a total entered, auto-distribute into unlocked months
+          setMode(false);
         }
       });
     }
@@ -305,7 +418,7 @@
       let monthlyValues = {};
       let total = 0;
       
-      if (hideMonths) {
+      if (currentHideMonthsMode) {
         // Total-only mode: distribute
         const totalInput = overlay.querySelector('.betterbudgyt-add-tx-total-input');
         total = parseInt(totalInput.value) || 0;
@@ -320,7 +433,6 @@
         monthlyValues = distributeAmountAcrossMonths(total, unlockedMonths);
       } else {
         // Individual months mode
-        const monthInputs = overlay.querySelectorAll('.betterbudgyt-add-tx-month-input');
         monthInputs.forEach(input => {
           const month = input.dataset.month;
           if (!input.disabled) {

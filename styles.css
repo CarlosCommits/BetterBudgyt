@@ -2124,6 +2124,15 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 }
 
 .betterbudgyt-add-tx-modal {
+  --bb-addtx-accent-bg: #f0fdf4;
+  --bb-addtx-accent-border: #bbf7d0;
+  --bb-addtx-accent-text: #166534;
+  --bb-addtx-accent-hover-bg: #dcfce7;
+  --bb-addtx-accent-btn: #22c55e;
+  --bb-addtx-accent-btn-hover: #16a34a;
+  --bb-addtx-accent-ring: rgba(34, 197, 94, 0.12);
+  --bb-addtx-toggle-on: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
@@ -2135,19 +2144,41 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
   flex-direction: column;
 }
 
+.betterbudgyt-add-tx-modal.bb-addtx-dataset1 {
+  --bb-addtx-accent-bg: #eff6ff;
+  --bb-addtx-accent-border: #bfdbfe;
+  --bb-addtx-accent-text: #1e40af;
+  --bb-addtx-accent-hover-bg: #dbeafe;
+  --bb-addtx-accent-btn: #3b82f6;
+  --bb-addtx-accent-btn-hover: #2563eb;
+  --bb-addtx-accent-ring: rgba(59, 130, 246, 0.14);
+  --bb-addtx-toggle-on: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.betterbudgyt-add-tx-modal.bb-addtx-dataset2 {
+  --bb-addtx-accent-bg: #f0fdf4;
+  --bb-addtx-accent-border: #bbf7d0;
+  --bb-addtx-accent-text: #166534;
+  --bb-addtx-accent-hover-bg: #dcfce7;
+  --bb-addtx-accent-btn: #22c55e;
+  --bb-addtx-accent-btn-hover: #16a34a;
+  --bb-addtx-accent-ring: rgba(34, 197, 94, 0.12);
+  --bb-addtx-toggle-on: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+}
+
 .betterbudgyt-add-tx-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: #f0fdf4;
-  border-bottom: 1px solid #bbf7d0;
+  background: var(--bb-addtx-accent-bg);
+  border-bottom: 1px solid var(--bb-addtx-accent-border);
 }
 
 .betterbudgyt-add-tx-title {
   font-size: 16px;
   font-weight: 600;
-  color: #166534;
+  color: var(--bb-addtx-accent-text);
 }
 
 .betterbudgyt-add-tx-close {
@@ -2162,8 +2193,8 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 }
 
 .betterbudgyt-add-tx-close:hover {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--bb-addtx-accent-hover-bg);
+  color: var(--bb-addtx-accent-text);
 }
 
 .betterbudgyt-add-tx-content {
@@ -2199,6 +2230,64 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
   border-top: 1px solid #e2e8f0;
 }
 
+.betterbudgyt-add-tx-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.betterbudgyt-add-tx-row .betterbudgyt-add-tx-field {
+  margin-bottom: 0;
+}
+
+.betterbudgyt-add-tx-field--grow {
+  flex: 1 1 280px;
+}
+
+.betterbudgyt-add-tx-field--toggle {
+  flex: 0 0 auto;
+}
+
+.betterbudgyt-add-tx-field label.betterbudgyt-comparison-toggle-container {
+  display: flex;
+  margin-bottom: 0;
+}
+
+.betterbudgyt-add-tx-field--toggle .betterbudgyt-comparison-toggle-container {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  white-space: nowrap;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.betterbudgyt-add-tx-modal .betterbudgyt-comparison-toggle-label {
+  font-size: 14px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.betterbudgyt-add-tx-modal .betterbudgyt-comparison-toggle-container input[type="checkbox"]:checked + .betterbudgyt-comparison-toggle-slider {
+  background: var(--bb-addtx-toggle-on);
+}
+
+.betterbudgyt-add-tx-dataset-static {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #334155;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
 .betterbudgyt-add-tx-field {
   margin-bottom: 16px;
 }
@@ -2231,11 +2320,27 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
   box-sizing: border-box;
 }
 
+.betterbudgyt-add-tx-total-input {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+
+.betterbudgyt-add-tx-total-input::-webkit-outer-spin-button,
+.betterbudgyt-add-tx-total-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.betterbudgyt-add-tx-total-input {
+  -moz-appearance: textfield;
+}
+
 .betterbudgyt-add-tx-desc:focus,
 .betterbudgyt-add-tx-total-input:focus {
   outline: none;
-  border-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+  border-color: var(--bb-addtx-accent-btn);
+  box-shadow: 0 0 0 3px var(--bb-addtx-accent-ring);
 }
 
 /* Month grid */
@@ -2269,13 +2374,25 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 13px;
-  text-align: center;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   box-sizing: border-box;
+  appearance: textfield;
+}
+
+.betterbudgyt-add-tx-month-input::-webkit-outer-spin-button,
+.betterbudgyt-add-tx-month-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.betterbudgyt-add-tx-month-input {
+  -moz-appearance: textfield;
 }
 
 .betterbudgyt-add-tx-month-input:focus {
   outline: none;
-  border-color: #22c55e;
+  border-color: var(--bb-addtx-accent-btn);
 }
 
 .betterbudgyt-add-tx-month-item.locked label {
@@ -2298,7 +2415,7 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 }
 
 .betterbudgyt-add-tx-calculated-total {
-  color: #22c55e;
+  color: var(--bb-addtx-accent-btn);
   font-size: 16px;
 }
 
@@ -2311,8 +2428,8 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 
 .betterbudgyt-add-tx-distribution-preview {
   font-size: 12px;
-  color: #166534;
-  background: #f0fdf4;
+  color: var(--bb-addtx-accent-text);
+  background: var(--bb-addtx-accent-bg);
   padding: 8px 12px;
   border-radius: 4px;
   margin-top: 8px;
@@ -2360,7 +2477,7 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 .betterbudgyt-add-tx-save {
   padding: 8px 20px;
   border: none;
-  background: #22c55e;
+  background: var(--bb-addtx-accent-btn);
   color: #fff;
   border-radius: 6px;
   font-size: 14px;
@@ -2369,7 +2486,7 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 }
 
 .betterbudgyt-add-tx-save:hover {
-  background: #16a34a;
+  background: var(--bb-addtx-accent-btn-hover);
 }
 
 .betterbudgyt-add-tx-save:disabled {
