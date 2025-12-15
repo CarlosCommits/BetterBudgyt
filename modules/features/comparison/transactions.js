@@ -349,21 +349,11 @@
         
         showTxStatus(overlay, 'Transaction saved successfully!', 'success');
         
-        // Reset form for another entry
-        descInput.value = '';
-        if (hideMonths) {
-          overlay.querySelector('.betterbudgyt-add-tx-total-input').value = '';
-          const preview = overlay.querySelector('.betterbudgyt-add-tx-distribution-preview');
-          if (preview) preview.style.display = 'none';
-        } else {
-          overlay.querySelectorAll('.betterbudgyt-add-tx-month-input').forEach(i => i.value = '');
-          const totalDisplay = overlay.querySelector('.betterbudgyt-add-tx-calculated-total');
-          if (totalDisplay) totalDisplay.textContent = '0';
-        }
+        // Refresh the comparison modal UI to show the new transaction and updated totals
+        refreshComparisonModalUI();
         
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Transaction';
-        descInput.focus();
+        // Close modal after brief delay (like notes.js behavior)
+        setTimeout(closeModal, 1500);
         
       } catch (error) {
         console.error('Failed to save transaction:', error);
@@ -1082,6 +1072,65 @@
       
       console.log('Cache updated with new transaction:', description);
     }
+  }
+
+  // Refresh the comparison modal UI after adding a transaction
+  function refreshComparisonModalUI() {
+    const state = window.BetterBudgyt.state;
+    const comparisonData = state?.currentComparisonData;
+    if (!comparisonData) {
+      console.warn('No comparison data in state to refresh');
+      return;
+    }
+    
+    const modal = document.querySelector('.betterbudgyt-comparison-modal');
+    if (!modal) {
+      console.warn('Comparison modal not found in DOM');
+      return;
+    }
+    
+    const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+    if (!tableContainer) {
+      console.warn('Table container not found in modal');
+      return;
+    }
+    
+    // Preserve expanded department states
+    const expandedDepts = [];
+    modal.querySelectorAll('.betterbudgyt-dept-card.expanded').forEach(card => {
+      expandedDepts.push(card.dataset.dept);
+    });
+    
+    // Get current toggle states
+    const currentHideMonths = modal.querySelector('#hideMonthsToggle')?.checked ?? false;
+    const currentClassTotalsOnly = modal.querySelector('#classTotalsOnlyToggle')?.checked ?? false;
+    
+    // Re-render the table using modal.js generateComparisonTable
+    const { generateComparisonTable } = window.BetterBudgyt.features.comparison.modal;
+    if (!generateComparisonTable) {
+      console.error('generateComparisonTable not found in modal module');
+      return;
+    }
+    
+    tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, currentClassTotalsOnly);
+    
+    // Restore expanded states
+    expandedDepts.forEach(deptId => {
+      const card = tableContainer.querySelector(`.betterbudgyt-dept-card[data-dept="${deptId}"]`);
+      if (card) {
+        card.classList.add('expanded');
+        const body = card.querySelector('.betterbudgyt-dept-card-body');
+        if (body) body.style.display = 'block';
+      }
+    });
+    
+    // Re-setup context menu handlers for comments
+    const comments = window.BetterBudgyt.features.comparison.comments;
+    if (comments?.setupContextMenuHandlers) {
+      comments.setupContextMenuHandlers(modal, comparisonData);
+    }
+    
+    console.log('Comparison modal UI refreshed with new transaction');
   }
 
   // Export to namespace
