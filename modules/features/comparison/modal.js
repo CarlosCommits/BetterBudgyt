@@ -33,10 +33,74 @@
   function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
     let html = '<div class="betterbudgyt-transactions-grid">';
     
+    // Check editability and lock status for each dataset
+    const dataset1Editable = comparisonData.dataset1.isEditable;
+    const dataset2Editable = comparisonData.dataset2.isEditable;
+    const dataset1LockedMonths = comparisonData.dataset1.lockedMonths || [];
+    const dataset2LockedMonths = comparisonData.dataset2.lockedMonths || [];
+    const dataset1AllLocked = dataset1LockedMonths.length >= 12;
+    const dataset2AllLocked = dataset2LockedMonths.length >= 12;
+    const dataset1HasLocks = dataset1LockedMonths.length > 0;
+    const dataset2HasLocks = dataset2LockedMonths.length > 0;
+    
+    // Helper to build add transaction button
+    function buildAddTxBtn(datasetNum, isEditable, allLocked, hasLocks, lockedMonths, dataType, deptData) {
+      if (!isEditable) {
+        // Not editable - no button
+        return '';
+      }
+      
+      if (allLocked) {
+        // All months locked - show disabled button with tooltip
+        return `
+          <button class="betterbudgyt-section-add-tx-btn disabled" 
+                  disabled
+                  title="All months are locked - cannot add transactions">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+        `;
+      }
+      
+      // Some or no months locked - show enabled button
+      const lockInfo = hasLocks ? ` (${12 - lockedMonths.length} months unlocked)` : '';
+      return `
+        <button class="betterbudgyt-section-add-tx-btn" 
+                data-dataset="${datasetNum}" 
+                data-store-uid="${deptData.storeUID}" 
+                data-dept-name="${escapeHtml(deptData.name || deptData['dataset' + datasetNum]?.departmentName || '')}"
+                title="Add transaction to ${escapeHtml(dataType)}${lockInfo}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+      `;
+    }
+    
+    // Helper to build lock indicator
+    function buildLockIndicator(lockedMonths, allLocked) {
+      if (allLocked) {
+        return `<span class="betterbudgyt-section-lock-indicator all-locked" title="All months locked">&#128274;</span>`;
+      } else if (lockedMonths.length > 0) {
+        return `<span class="betterbudgyt-section-lock-indicator partial-locked" title="${lockedMonths.length} month(s) locked: ${lockedMonths.join(', ')}">&#128274;</span>`;
+      }
+      return '';
+    }
+    
+    // Build components for dataset 1
+    const addTxBtn1 = buildAddTxBtn(1, dataset1Editable, dataset1AllLocked, dataset1HasLocks, dataset1LockedMonths, comparisonData.dataset1.dataType, deptData);
+    const lockIndicator1 = buildLockIndicator(dataset1LockedMonths, dataset1AllLocked);
+    
     // Dataset 1 transactions
     html += `
       <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-1">
-        <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset1.dataType}</div>
+        <div class="betterbudgyt-transactions-section-header">
+          <span class="betterbudgyt-section-header-title">${comparisonData.dataset1.dataType}${lockIndicator1}</span>
+          ${addTxBtn1}
+        </div>
     `;
     
     if (deptData.dataset1?.transactions?.length > 0) {
@@ -85,10 +149,17 @@
     }
     html += '</div>';
     
+    // Build components for dataset 2
+    const addTxBtn2 = buildAddTxBtn(2, dataset2Editable, dataset2AllLocked, dataset2HasLocks, dataset2LockedMonths, comparisonData.dataset2.dataType, deptData);
+    const lockIndicator2 = buildLockIndicator(dataset2LockedMonths, dataset2AllLocked);
+    
     // Dataset 2 transactions
     html += `
       <div class="betterbudgyt-transactions-section betterbudgyt-transactions-section-2">
-        <div class="betterbudgyt-transactions-section-header">${comparisonData.dataset2.dataType}</div>
+        <div class="betterbudgyt-transactions-section-header">
+          <span class="betterbudgyt-section-header-title">${comparisonData.dataset2.dataType}${lockIndicator2}</span>
+          ${addTxBtn2}
+        </div>
     `;
     
     if (deptData.dataset2?.transactions?.length > 0) {
@@ -1424,6 +1495,40 @@
         const hideMonthsToggle = modal.querySelector('#hideMonthsToggle');
         const currentHideMonths = hideMonthsToggle ? hideMonthsToggle.checked : false;
         openDepartmentInNewTab(deptId, comparisonData, currentHideMonths);
+      }
+    });
+    
+    // Add Transaction button handler (section-level buttons)
+    modal.addEventListener('click', (event) => {
+      const addTxBtn = event.target.closest('.betterbudgyt-section-add-tx-btn');
+      if (addTxBtn) {
+        event.stopPropagation();
+        
+        const datasetIndex = parseInt(addTxBtn.dataset.dataset);
+        const storeUID = addTxBtn.dataset.storeUid;
+        const deptName = addTxBtn.dataset.deptName;
+        
+        const hideMonthsToggle = modal.querySelector('#hideMonthsToggle');
+        const currentHideMonths = hideMonthsToggle ? hideMonthsToggle.checked : false;
+        
+        // Find department info from the appropriate dataset
+        const targetDataset = datasetIndex === 1 ? comparisonData.dataset1 : comparisonData.dataset2;
+        const dept = targetDataset.departments?.find(d => d.storeUID === storeUID);
+        
+        const departmentInfo = {
+          storeUID: storeUID,
+          departmentName: deptName || dept?.departmentName || 'Unknown Department',
+          deptUID: dept?.deptUID
+        };
+        
+        // Use the specific dataset that was clicked
+        const datasetInfo = { ...targetDataset, datasetIndex: datasetIndex };
+        
+        const transactions = window.BetterBudgyt.features.comparison.transactions;
+        if (transactions) {
+          // Pass false for allowDatasetSwitch since user clicked on a specific dataset section
+          transactions.showAddTransactionModal(departmentInfo, datasetInfo, comparisonData, currentHideMonths, false);
+        }
       }
     });
     
