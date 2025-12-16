@@ -9,7 +9,7 @@
   // Global state object
   const state = {
     // Feature toggles
-    calculatorEnabled: true,
+    calculatorEnabled: false,
     comparisonModeEnabled: false,
     debugModeEnabled: false,
 

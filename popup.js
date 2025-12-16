@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
       colorGradientEnabled: true,
       varianceThreshold: '',
       varianceHighlightEnabled: false,
-      calculatorEnabled: true, // Default to true
+      calculatorEnabled: false, // Default to false
       showTotalOnlyEnabled: false, // Default for the toggle
       comparisonModeEnabled: false, // Default for comparison mode
       debugModeEnabled: false // Default for debug mode
