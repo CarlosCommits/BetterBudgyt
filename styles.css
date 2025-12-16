@@ -1055,6 +1055,22 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   background: #f1f5f9;
 }
 
+.betterbudgyt-mini-table th.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.betterbudgyt-mini-table th.sortable-header:hover {
+  background: #e2e8f0;
+  color: #3b82f6;
+}
+
+.betterbudgyt-mini-table th.sortable-header.sortable-active {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
 .betterbudgyt-mini-table th.betterbudgyt-note-col {
   text-align: center;
 }
