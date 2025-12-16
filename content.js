@@ -159,7 +159,7 @@
     colorGradientEnabled: true,
     varianceThreshold: '',
     varianceHighlightEnabled: false,
-    calculatorEnabled: true,
+    calculatorEnabled: false,
     comparisonModeEnabled: false,
     debugModeEnabled: false,
     comparisonHideMonths: false,
