@@ -283,7 +283,50 @@
     }
   }
 
-  // Initialize budget session context
+  // Fetch additional transaction pages via GetMoreSubCatRows
+  async function fetchMoreSubCatRows(params, pageIndex, dataHref) {
+    const baseUrl = window.location.origin;
+    const refererUrl = dataHref ? `${baseUrl}${dataHref}` : null;
+    
+    const headers = {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Accept': 'text/html, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    if (refererUrl) headers['Referer'] = refererUrl;
+    
+    const payload = {
+      level: params.level || '2',
+      StoreUID: params.StoreUID,
+      DeptUID: params.DeptUID,
+      CategoryUID: params.CategoryUID,
+      groupedcategory: params.groupedcategory,
+      Stores: params.Stores,
+      CompNonCompfilter: params.CompNonCompfilter || '',
+      viewLevel: params.viewLevel || 'CATEGORY',
+      PageIndex: String(pageIndex),
+      vendorIdCSV: params.vendorIdCSV || '-2',
+      showInGlobal: String(params.showInGlobal !== undefined ? params.showInGlobal : true),
+      bsMode: params.bsMode || '',
+      categoryType: params.categoryType || 'PL'
+    };
+    
+    console.log(`Fetching page ${pageIndex} for StoreUID ${params.StoreUID} via GetMoreSubCatRows`);
+    
+    const response = await fetch('/Budget/GetMoreSubCatRows', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error fetching more rows! Status: ${response.status}`);
+    }
+    
+    return await response.text();
+  }
+
+  // Initialize budget session context\r
   async function fetchPercentApprovedValues(groupedcategory, dataHref, storeCsv) {
     try {
       console.log(`Initializing budget session with FetchPercentApprovedValues for ${groupedcategory}`);
@@ -689,6 +732,43 @@
             deptData.storeUID = deptInfo.storeUID;
             deptData.deptUID = deptInfo.deptUID;
             
+            // Handle pagination: if there are more transactions, fetch them
+            if (deptData.pagination && deptData.pagination.hasMore) {
+              let currentPageIndex = deptData.pagination.currentPageIndex;
+              let hasMorePages = true;
+              const maxPages = 20; // Safety limit to prevent infinite loops
+              let pagesFetched = 0;
+              
+              while (hasMorePages && pagesFetched < maxPages) {
+                const nextPageIndex = currentPageIndex + 1;
+                console.log(`Fetching additional page ${nextPageIndex} for ${deptInfo.departmentName}...`);
+                
+                try {
+                  const moreRowsHtml = await fetchMoreSubCatRows(deptParameters, nextPageIndex, dataHref);
+                  const moreData = await parseDatasheetHtml(moreRowsHtml, `${deptInfo.departmentName} (page ${nextPageIndex})`);
+                  
+                  if (moreData.transactions && moreData.transactions.length > 0) {
+                    deptData.transactions.push(...moreData.transactions);
+                    console.log(`Added ${moreData.transactions.length} transactions from page ${nextPageIndex}`);
+                  }
+                  
+                  if (moreData.pagination && moreData.pagination.hasMore) {
+                    currentPageIndex = moreData.pagination.currentPageIndex;
+                    pagesFetched++;
+                  } else {
+                    hasMorePages = false;
+                  }
+                } catch (pageError) {
+                  console.warn(`Error fetching page ${nextPageIndex} for ${deptInfo.departmentName}:`, pageError);
+                  hasMorePages = false;
+                }
+              }
+              
+              if (pagesFetched > 0) {
+                console.log(`✓ Fetched ${pagesFetched} additional pages for ${deptInfo.departmentName}, total transactions: ${deptData.transactions.length}`);
+              }
+            }
+            
             const hasTransactions = (deptData.transactions || []).length > 0;
             const deptTotalVal = deptData.totals.total || 0;
             
@@ -907,6 +987,7 @@
     fetchStoreNamesFromPage,
     primeBudgetSession,
     fetchPercentApprovedValues,
+    fetchMoreSubCatRows,
     extractStoreUIDFromLevel0,
     fetchStoreUIDForDepartment,
     fetchDatasheetData,

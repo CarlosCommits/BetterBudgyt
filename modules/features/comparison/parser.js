@@ -365,8 +365,22 @@
     const result = {
       departmentName,
       transactions: [],
-      totals: {}
+      totals: {},
+      pagination: null  // Will be set if there are more rows to load
     };
+    
+    // Check for "show more" pagination link
+    const showMoreLink = doc.querySelector('a.show-more-rows');
+    if (showMoreLink) {
+      const pageIndex = showMoreLink.getAttribute('data-pageIndex') || showMoreLink.getAttribute('data-pageindex');
+      if (pageIndex) {
+        result.pagination = {
+          hasMore: true,
+          currentPageIndex: parseInt(pageIndex, 10) || 1
+        };
+        console.log(`Found pagination indicator for ${departmentName}: pageIndex=${pageIndex}, more pages available`);
+      }
+    }
     
     const allRows = doc.querySelectorAll('table > tbody > tr[data-level]');
     console.log(`Found ${allRows.length} total rows with data-level attribute for ${departmentName}`);
