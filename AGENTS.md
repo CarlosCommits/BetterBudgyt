@@ -132,32 +132,15 @@ await fetch('/Budget/SaveUserComments', {
 
 ## Datasheet Comparison Modal Architecture
 
-The datasheet comparison feature has **two separate UI implementations** that must be kept in sync:
-
-### 1. Main Modal (in-page)
+The datasheet comparison feature is a single in-page modal implementation:
 
 - Rendered directly into the Budgyt page DOM
-- Uses `styles.css` for styling
-- Event handlers are set up in `content.js` (global click handlers) and `modal.js` (modal-specific handlers)
-- Functions like `showComparisonModal()`, `generateComparisonTable()`, etc.
+- Styled via `styles.css` (keep overrides minimal and targeted)
+- Modal UI + handlers live in `modules/features/comparison/modal.js`
+- Some global click handlers are wired in `content.js`
 
-### 2. Popout Window (separate tab)
+The modal can be minimized, so there is no separate popout window to keep in sync.
 
-- Generated as a complete HTML document via `openDepartmentInNewTab()` in `modal.js`
-- Contains **inline CSS** duplicated from the main styles
-- Contains **inline JavaScript** with its own event handlers
-- Opens in a new browser tab via `window.open()` with a blob URL
-
-### ⚠️ Critical: Keep Both Versions in Sync
-
-When modifying the datasheet comparison feature, you must update **BOTH** versions:
-
-1. **Styling changes** → Update `styles.css` AND the inline `<style>` block in `openDepartmentInNewTab()`
-2. **HTML structure changes** → Update `generateDeptTransactionsHtml()` AND the popout's `generateDeptTransactionsHtml()` function
-3. **Click handlers** → Update `content.js` global handlers AND the popout's inline `<script>` event listeners
-4. **New features** → Implement in both the main modal AND the popout window
-
-The popout is essentially a standalone HTML page with everything inlined, so it doesn't share code with the main extension at runtime.
 
 ### Important Considerations
 
