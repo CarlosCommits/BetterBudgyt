@@ -12,6 +12,30 @@
 
   const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
 
+  const MONTH_ORDER = { 'Apr': 1, 'May': 2, 'Jun': 3, 'Jul': 4, 'Aug': 5, 'Sep': 6, 'Oct': 7, 'Nov': 8, 'Dec': 9, 'Jan': 10, 'Feb': 11, 'Mar': 12 };
+
+  function getFirstActiveMonthIndex(monthly) {
+    if (!monthly) return 13;
+    for (const month of Object.keys(MONTH_ORDER)) {
+      if (monthly[month] && monthly[month] !== 0) {
+        return MONTH_ORDER[month];
+      }
+    }
+    return 13;
+  }
+
+  function sortTransactionsByMonth(transactions) {
+    return [...transactions].sort((a, b) => {
+      return getFirstActiveMonthIndex(a.monthly) - getFirstActiveMonthIndex(b.monthly);
+    });
+  }
+
+  function getActiveMonths(monthly) {
+    if (!monthly) return '';
+    const activeMonths = MONTHS.filter(m => monthly[m] && monthly[m] !== 0);
+    return activeMonths.join(', ');
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Utility functions
   // ─────────────────────────────────────────────────────────────────────────────
@@ -118,11 +142,12 @@
   // ─────────────────────────────────────────────────────────────────────────────
 
   function buildLayout({ includeMonths }) {
-    // Columns: Department | Description | Vendor | (Months...) | Total | Notes
+    // Columns: Department | Description | Vendor | (Month OR Months...) | Total | Notes
     const layout = {
       deptCol: 0,
       descCol: 1,
       vendorCol: 2,
+      monthCol: null,
       monthsStart: null,
       totalCol: null,
       notesCol: null,
@@ -134,6 +159,9 @@
     if (includeMonths) {
       layout.monthsStart = c;
       c += MONTHS.length;
+    } else {
+      layout.monthCol = c;
+      c++;
     }
 
     layout.totalCol = c++;
@@ -153,6 +181,8 @@
       MONTHS.forEach((m, i) => {
         headers[layout.monthsStart + i] = m;
       });
+    } else if (layout.monthCol !== null) {
+      headers[layout.monthCol] = 'Month';
     }
 
     headers[layout.totalCol] = 'Total';
@@ -171,6 +201,8 @@
         cols.push({ wch: 44 });
       } else if (c === layout.vendorCol) {
         cols.push({ wch: 26 });
+      } else if (c === layout.monthCol) {
+        cols.push({ wch: 18 });
       } else if (c === layout.totalCol) {
         cols.push({ wch: 14 });
       } else if (c === layout.notesCol) {
@@ -254,7 +286,8 @@
       // Transaction rows grouped by department
       departments.forEach(dept => {
         const deptName = stripNumberPrefix(safeString(dept.departmentName)) || 'Department';
-        const transactions = dept.transactions || [];
+        const rawTransactions = dept.transactions || [];
+        const transactions = includeMonths ? rawTransactions : sortTransactionsByMonth(rawTransactions);
 
         transactions.forEach(t => {
           const row = new Array(layout.columnCount).fill('');
@@ -267,6 +300,8 @@
             MONTHS.forEach((m, i) => {
               row[layout.monthsStart + i] = t.monthly?.[m] || 0;
             });
+          } else if (layout.monthCol !== null) {
+            row[layout.monthCol] = getActiveMonths(t.monthly);
           }
 
           row[layout.totalCol] = t.total || 0;
