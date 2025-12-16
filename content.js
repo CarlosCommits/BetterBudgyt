@@ -157,6 +157,42 @@
 
   // ==================== Message Listeners ====================
 
+  // Default colors
+  const DEFAULT_HOVER_COLOR = '#00FFFF';
+  const DEFAULT_SELECTION_COLOR = '#FF6B00';
+
+  // Inject dynamic CSS for dashboard colors
+  function injectDashboardColorStyles(hoverColor, selectionColor) {
+    // Remove existing dynamic styles if present
+    const existingStyle = document.getElementById('betterbudgyt-dynamic-colors');
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+
+    // Create new style element with user colors
+    const style = document.createElement('style');
+    style.id = 'betterbudgyt-dynamic-colors';
+    style.textContent = `
+      /* Dynamic hover color */
+      .table-hover > tbody > tr:hover {
+        background-color: ${hoverColor} !important;
+      }
+      .table-hover > tbody > tr:hover > td[style*="position: absolute"] {
+        background-color: ${hoverColor} !important;
+      }
+      .table-hover > tbody > tr > td[style*="position: absolute"]:hover {
+        background-color: ${hoverColor} !important;
+      }
+
+      /* Dynamic selection color */
+      table tbody tr td.betterbudgyt-cell-selected,
+      td.betterbudgyt-cell-selected[style] {
+        background-color: ${selectionColor} !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   // Load initial settings
   chrome.storage.sync.get({
     variance1: { minuend: 0, subtrahend: 1 },
@@ -168,7 +204,9 @@
     comparisonModeEnabled: false,
     debugModeEnabled: false,
     comparisonHideMonths: false,
-    comparisonClassTotalsOnly: false
+    comparisonClassTotalsOnly: false,
+    hoverColor: DEFAULT_HOVER_COLOR,
+    selectionColor: DEFAULT_SELECTION_COLOR
   }, async (settings) => {
     state.currentSettings = {
       variance1: settings.variance1,
@@ -180,6 +218,9 @@
     state.calculatorEnabled = settings.calculatorEnabled;
     state.comparisonModeEnabled = settings.comparisonModeEnabled;
     state.debugModeEnabled = settings.debugModeEnabled;
+    
+    // Inject dynamic color styles
+    injectDashboardColorStyles(settings.hoverColor, settings.selectionColor);
     
     console.log(`Debug mode is ${state.debugModeEnabled ? 'enabled' : 'disabled'} on startup`);
 
@@ -245,6 +286,16 @@
       }
       
       sendResponse({status: "Show total only toggled"});
+    } else if (message.type === 'UPDATE_DASHBOARD_COLORS') {
+      // Get current colors from storage to merge with the update
+      chrome.storage.sync.get({
+        hoverColor: DEFAULT_HOVER_COLOR,
+        selectionColor: DEFAULT_SELECTION_COLOR
+      }, (settings) => {
+        const hoverColor = message.hoverColor || settings.hoverColor;
+        const selectionColor = message.selectionColor || settings.selectionColor;
+        injectDashboardColorStyles(hoverColor, selectionColor);
+      });
     }
     
     sendResponse();

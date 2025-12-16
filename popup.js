@@ -49,7 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
       calculatorEnabled: false, // Default to false
       showTotalOnlyEnabled: false, // Default for the toggle
       comparisonModeEnabled: false, // Default for comparison mode
-      debugModeEnabled: false // Default for debug mode
+      debugModeEnabled: false, // Default for debug mode
+      hoverColor: '#00FFFF', // Default hover color (cyan)
+      selectionColor: '#FF6B00' // Default selection color (orange)
     }, (settings) => {
       document.getElementById('color-gradient-toggle').checked = settings.colorGradientEnabled;
       document.getElementById('calculator-toggle').checked = settings.calculatorEnabled;
@@ -61,6 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('variance2-minuend').value = settings.variance2.minuend;
       document.getElementById('variance2-subtrahend').value = settings.variance2.subtrahend;
       document.getElementById('variance-threshold').value = settings.varianceThreshold;
+      
+      // Load color picker values
+      document.getElementById('hover-color-picker').value = settings.hoverColor;
+      document.getElementById('hover-color-swatch').style.backgroundColor = settings.hoverColor;
+      document.getElementById('selection-color-picker').value = settings.selectionColor;
+      document.getElementById('selection-color-swatch').style.backgroundColor = settings.selectionColor;
       
       const toggleBtn = document.getElementById('toggle-threshold');
       toggleBtn.textContent = settings.varianceHighlightEnabled ? 'Disable' : 'Enable';
@@ -172,6 +180,62 @@ document.getElementById('color-gradient-toggle').addEventListener('change', (e) 
     chrome.tabs.sendMessage(tabs[0].id, {
       type: 'UPDATE_COLOR_GRADIENT',
       enabled: e.target.checked
+    });
+  });
+});
+
+// Default colors
+const DEFAULT_HOVER_COLOR = '#00FFFF';
+const DEFAULT_SELECTION_COLOR = '#FF6B00';
+
+// Hover color picker
+document.getElementById('hover-color-picker').addEventListener('input', (e) => {
+  const color = e.target.value;
+  document.getElementById('hover-color-swatch').style.backgroundColor = color;
+  chrome.storage.sync.set({ hoverColor: color });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'UPDATE_DASHBOARD_COLORS',
+      hoverColor: color
+    });
+  });
+});
+
+// Selection color picker
+document.getElementById('selection-color-picker').addEventListener('input', (e) => {
+  const color = e.target.value;
+  document.getElementById('selection-color-swatch').style.backgroundColor = color;
+  chrome.storage.sync.set({ selectionColor: color });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'UPDATE_DASHBOARD_COLORS',
+      selectionColor: color
+    });
+  });
+});
+
+// Reset hover color to default
+document.getElementById('hover-color-reset').addEventListener('click', () => {
+  document.getElementById('hover-color-picker').value = DEFAULT_HOVER_COLOR;
+  document.getElementById('hover-color-swatch').style.backgroundColor = DEFAULT_HOVER_COLOR;
+  chrome.storage.sync.set({ hoverColor: DEFAULT_HOVER_COLOR });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'UPDATE_DASHBOARD_COLORS',
+      hoverColor: DEFAULT_HOVER_COLOR
+    });
+  });
+});
+
+// Reset selection color to default
+document.getElementById('selection-color-reset').addEventListener('click', () => {
+  document.getElementById('selection-color-picker').value = DEFAULT_SELECTION_COLOR;
+  document.getElementById('selection-color-swatch').style.backgroundColor = DEFAULT_SELECTION_COLOR;
+  chrome.storage.sync.set({ selectionColor: DEFAULT_SELECTION_COLOR });
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: 'UPDATE_DASHBOARD_COLORS',
+      selectionColor: DEFAULT_SELECTION_COLOR
     });
   });
 });
