@@ -79,6 +79,11 @@
 
   // Global click handler for table cells
   document.addEventListener('click', (event) => {
+    // Only activate on dashboard pages (pages with hash routes like #comp-ytd)
+    if (!window.location.hash || window.location.hash === '#') {
+      return;
+    }
+
     // First check if click is within a table that has both classes
     const dashboardTable = event.target.closest('table.table.table-striped');
     if (!dashboardTable) return;
