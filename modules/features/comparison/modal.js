@@ -12,6 +12,18 @@
   const { cleanupMinimizedTabsContainer, showNoteModal } = window.BetterBudgyt.ui.modals;
   const state = window.BetterBudgyt.state;
 
+  const MONTH_ORDER = { 'Apr': 1, 'May': 2, 'Jun': 3, 'Jul': 4, 'Aug': 5, 'Sep': 6, 'Oct': 7, 'Nov': 8, 'Dec': 9, 'Jan': 10, 'Feb': 11, 'Mar': 12 };
+
+  function getFirstActiveMonthIndex(monthly) {
+    if (!monthly) return 13;
+    for (const month of Object.keys(MONTH_ORDER)) {
+      if (monthly[month] && monthly[month] !== 0) {
+        return MONTH_ORDER[month];
+      }
+    }
+    return 13;
+  }
+
   function sortTransactions(transactions, sortField, sortDirection) {
     if (!sortField || !transactions) return transactions;
     
@@ -32,6 +44,10 @@
       } else if (sortField === 'total') {
         valA = a.total || 0;
         valB = b.total || 0;
+        return dir * (valA - valB);
+      } else if (sortField === 'month') {
+        valA = getFirstActiveMonthIndex(a.monthly);
+        valB = getFirstActiveMonthIndex(b.monthly);
         return dir * (valA - valB);
       }
       return 0;
@@ -67,6 +83,13 @@
 
   const NO_SORT = { field: null, direction: 'asc' };
 
+  // Get 3-letter month abbreviations for months with non-zero values
+  function getActiveMonths(monthly, months) {
+    if (!monthly) return '';
+    const activeMonths = months.filter(m => monthly[m] && monthly[m] !== 0);
+    return activeMonths.join(', ');
+  }
+
   function generateTransactionRowsHtml(transactions, datasetInfo, months, hideMonths) {
     let html = '';
     transactions.forEach(t => {
@@ -84,7 +107,7 @@
         <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
           <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
           <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
-          ${hideMonths ? '' : months.map(m => {
+          ${hideMonths ? `<td class="betterbudgyt-mini-month">${getActiveMonths(t.monthly, months)}</td>` : months.map(m => {
             const val = Math.abs(t.monthly?.[m] || 0);
             const isCompact = val >= 10000;
             const hasComment = t.comments?.[m] && hasUID;
@@ -175,12 +198,12 @@
     if (deptData.dataset1?.transactions?.length > 0) {
       const sortedTxns1 = sortTransactions(deptData.dataset1.transactions, sortState1.field, sortState1.direction);
       html += `
-        <table class="betterbudgyt-mini-table" data-dataset="1" data-dept="${deptData.storeUID}">
+        <table class="betterbudgyt-mini-table${hideMonths ? ' hide-months-mode' : ''}" data-dataset="1" data-dept="${deptData.storeUID}">
           <thead>
             <tr>
               ${buildSortableHeader('description', 'Description', sortState1, 1)}
               ${buildSortableHeader('vendor', 'Vendor', sortState1, 1)}
-              ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
+              ${hideMonths ? buildSortableHeader('month', 'Month', sortState1, 1) : months.map(m => `<th>${m}</th>`).join('')}
               ${buildSortableHeader('total', 'Total', sortState1, 1, 'betterbudgyt-total-col')}
             </tr>
           </thead>
@@ -210,12 +233,12 @@
     if (deptData.dataset2?.transactions?.length > 0) {
       const sortedTxns2 = sortTransactions(deptData.dataset2.transactions, sortState2.field, sortState2.direction);
       html += `
-        <table class="betterbudgyt-mini-table" data-dataset="2" data-dept="${deptData.storeUID}">
+        <table class="betterbudgyt-mini-table${hideMonths ? ' hide-months-mode' : ''}" data-dataset="2" data-dept="${deptData.storeUID}">
           <thead>
             <tr>
               ${buildSortableHeader('description', 'Description', sortState2, 2)}
               ${buildSortableHeader('vendor', 'Vendor', sortState2, 2)}
-              ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
+              ${hideMonths ? buildSortableHeader('month', 'Month', sortState2, 2) : months.map(m => `<th>${m}</th>`).join('')}
               ${buildSortableHeader('total', 'Total', sortState2, 2, 'betterbudgyt-total-col')}
             </tr>
           </thead>

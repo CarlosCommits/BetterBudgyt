@@ -1005,6 +1005,35 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   text-align: right !important;
 }
 
+/* Hide-months mode (4 columns: Desc, Vendor, Month, Total) */
+.betterbudgyt-mini-table.hide-months-mode {
+  table-layout: fixed;
+}
+
+.betterbudgyt-mini-table.hide-months-mode th:first-child,
+.betterbudgyt-mini-table.hide-months-mode td:first-child {
+  width: 45%;
+  text-align: left;
+}
+
+.betterbudgyt-mini-table.hide-months-mode th:nth-child(2),
+.betterbudgyt-mini-table.hide-months-mode td:nth-child(2) {
+  width: 20%;
+  text-align: left;
+}
+
+.betterbudgyt-mini-table.hide-months-mode th:nth-child(3),
+.betterbudgyt-mini-table.hide-months-mode td:nth-child(3) {
+  width: 15%;
+  text-align: center;
+}
+
+.betterbudgyt-mini-table.hide-months-mode th.betterbudgyt-total-col,
+.betterbudgyt-mini-table.hide-months-mode .betterbudgyt-mini-total {
+  width: 20%;
+  text-align: right !important;
+}
+
 /* Single column mode - all columns get explicit widths */
 .single-column-mode .betterbudgyt-mini-table {
   table-layout: fixed;
@@ -1017,21 +1046,46 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   text-align: center;
 }
 
-/* In hide-months mode, make description column wider */
-.single-column-mode .betterbudgyt-mini-table th:first-child,
-.single-column-mode .betterbudgyt-mini-table td:first-child {
+/* In single-column mode with hide-months */
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode th:first-child,
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode td:first-child {
+  width: 45%;
+  text-align: left;
+}
+
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode th:nth-child(2),
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode td:nth-child(2) {
+  width: 20%;
+  text-align: left;
+}
+
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode th:nth-child(3),
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode td:nth-child(3) {
+  width: 15%;
+  text-align: center;
+}
+
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode th.betterbudgyt-total-col,
+.single-column-mode .betterbudgyt-mini-table.hide-months-mode .betterbudgyt-mini-total {
+  width: 20%;
+  text-align: right !important;
+}
+
+/* In single-column mode without hide-months (12 month columns) */
+.single-column-mode .betterbudgyt-mini-table:not(.hide-months-mode) th:first-child,
+.single-column-mode .betterbudgyt-mini-table:not(.hide-months-mode) td:first-child {
   width: 250px;
   text-align: left;
 }
 
-.single-column-mode .betterbudgyt-mini-table th:nth-child(2),
-.single-column-mode .betterbudgyt-mini-table td:nth-child(2) {
+.single-column-mode .betterbudgyt-mini-table:not(.hide-months-mode) th:nth-child(2),
+.single-column-mode .betterbudgyt-mini-table:not(.hide-months-mode) td:nth-child(2) {
   width: 90px;
   text-align: left;
 }
 
-.single-column-mode .betterbudgyt-mini-table th.betterbudgyt-total-col,
-.single-column-mode .betterbudgyt-mini-table .betterbudgyt-mini-total {
+.single-column-mode .betterbudgyt-mini-table:not(.hide-months-mode) th.betterbudgyt-total-col,
+.single-column-mode .betterbudgyt-mini-table:not(.hide-months-mode) .betterbudgyt-mini-total {
   width: 80px;
   text-align: right !important;
 }
@@ -1108,6 +1162,13 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   color: #64748b;
   font-size: 12px;
   word-wrap: break-word;
+}
+
+.betterbudgyt-mini-month {
+  color: #64748b;
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .betterbudgyt-mini-value {
