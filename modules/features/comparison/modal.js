@@ -12,6 +12,42 @@
   const { cleanupMinimizedTabsContainer, showNoteModal } = window.BetterBudgyt.ui.modals;
   const state = window.BetterBudgyt.state;
 
+  function sortTransactions(transactions, sortField, sortDirection) {
+    if (!sortField || !transactions) return transactions;
+    
+    const sorted = [...transactions];
+    const dir = sortDirection === 'desc' ? -1 : 1;
+    
+    sorted.sort((a, b) => {
+      let valA, valB;
+      
+      if (sortField === 'description') {
+        valA = (a.description || '').toLowerCase();
+        valB = (b.description || '').toLowerCase();
+        return dir * valA.localeCompare(valB);
+      } else if (sortField === 'vendor') {
+        valA = stripNumberPrefix(a.vendor || '').toLowerCase();
+        valB = stripNumberPrefix(b.vendor || '').toLowerCase();
+        return dir * valA.localeCompare(valB);
+      } else if (sortField === 'total') {
+        valA = a.total || 0;
+        valB = b.total || 0;
+        return dir * (valA - valB);
+      }
+      return 0;
+    });
+    
+    return sorted;
+  }
+
+  function buildSortableHeader(field, label, currentSort, datasetNum, extraClass = '') {
+    const isActive = currentSort.field === field;
+    const direction = isActive ? currentSort.direction : 'none';
+    const arrow = direction === 'asc' ? ' ▲' : direction === 'desc' ? ' ▼' : '';
+    const activeClass = isActive ? ' sortable-active' : '';
+    return `<th class="sortable-header${activeClass}${extraClass ? ' ' + extraClass : ''}" data-sort-field="${field}" data-dataset="${datasetNum}">${label}${arrow}</th>`;
+  }
+
   // Download attached file - primes session then opens download URL
   async function downloadAttachedFile(folderName, dataHref) {
     try {
@@ -29,8 +65,41 @@
     }
   }
 
+  const NO_SORT = { field: null, direction: 'asc' };
+
+  function generateTransactionRowsHtml(transactions, datasetInfo, months, hideMonths) {
+    let html = '';
+    transactions.forEach(t => {
+      const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
+      const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" data-folder="${escapeHtml(t.fileAttachment.folderName)}" data-href="${escapeHtml(datasetInfo.dataHref || '')}" title="Click to download file">📎</span>` : '';
+      const hasUID = !!t.plElementUID;
+      const descHasComment = t.comments?.description && hasUID;
+      const vendorHasComment = t.comments?.vendor && hasUID;
+      const totalHasComment = t.comments?.total && hasUID;
+      const descAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
+      const vendorAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
+      const totalAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="total" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
+      const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
+      html += `
+        <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
+          <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
+          <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
+          ${hideMonths ? '' : months.map(m => {
+            const val = Math.abs(t.monthly?.[m] || 0);
+            const isCompact = val >= 10000;
+            const hasComment = t.comments?.[m] && hasUID;
+            const monthAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="${m}" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
+            return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}${hasUID ? ' clickable-comment' : ''}${hasComment ? ' has-comment' : ''}"${monthAttrs}>${formatNumber(t.monthly?.[m] || 0)}</td>`;
+          }).join('')}
+          <td class="betterbudgyt-mini-total${hasUID ? ' clickable-comment' : ''}${totalHasComment ? ' has-comment' : ''}"${totalAttrs}>${formatNumber(t.total || 0)}</td>
+        </tr>
+      `;
+    });
+    return html;
+  }
+
   // Generate transaction details for a department
-  function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) {
+  function generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths, sortState1 = NO_SORT, sortState2 = NO_SORT) {
     let html = '<div class="betterbudgyt-transactions-grid">';
     
     // Check editability and lock status for each dataset
@@ -104,46 +173,22 @@
     `;
     
     if (deptData.dataset1?.transactions?.length > 0) {
+      const sortedTxns1 = sortTransactions(deptData.dataset1.transactions, sortState1.field, sortState1.direction);
       html += `
-        <table class="betterbudgyt-mini-table">
+        <table class="betterbudgyt-mini-table" data-dataset="1" data-dept="${deptData.storeUID}">
           <thead>
             <tr>
-              <th>Description</th>
-              <th>Vendor</th>
+              ${buildSortableHeader('description', 'Description', sortState1, 1)}
+              ${buildSortableHeader('vendor', 'Vendor', sortState1, 1)}
               ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
-              <th class="betterbudgyt-total-col">Total</th>
+              ${buildSortableHeader('total', 'Total', sortState1, 1, 'betterbudgyt-total-col')}
             </tr>
           </thead>
           <tbody>
+            ${generateTransactionRowsHtml(sortedTxns1, comparisonData.dataset1, months, hideMonths)}
+          </tbody>
+        </table>
       `;
-      deptData.dataset1.transactions.forEach(t => {
-        const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
-        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" data-folder="${escapeHtml(t.fileAttachment.folderName)}" data-href="${escapeHtml(comparisonData.dataset1.dataHref || '')}" title="Click to download file">📎</span>` : '';
-        const hasUID = !!t.plElementUID;
-        const descHasComment = t.comments?.description && hasUID;
-        const vendorHasComment = t.comments?.vendor && hasUID;
-        const totalHasComment = t.comments?.total && hasUID;
-        // Make all cells with plElementUID clickable for comments (right-click menu)
-        const descAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-        const vendorAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-        const totalAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="total" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-        const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
-        html += `
-          <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
-            <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
-            <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
-            ${hideMonths ? '' : months.map(m => {
-              const val = Math.abs(t.monthly?.[m] || 0);
-              const isCompact = val >= 10000;
-              const hasComment = t.comments?.[m] && hasUID;
-              const monthAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="${m}" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-              return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}${hasUID ? ' clickable-comment' : ''}${hasComment ? ' has-comment' : ''}"${monthAttrs}>${formatNumber(t.monthly?.[m] || 0)}</td>`;
-            }).join('')}
-            <td class="betterbudgyt-mini-total${hasUID ? ' clickable-comment' : ''}${totalHasComment ? ' has-comment' : ''}"${totalAttrs}>${formatNumber(t.total || 0)}</td>
-          </tr>
-        `;
-      });
-      html += '</tbody></table>';
     } else {
       html += '<div class="betterbudgyt-no-transactions">No transactions</div>';
     }
@@ -163,45 +208,22 @@
     `;
     
     if (deptData.dataset2?.transactions?.length > 0) {
+      const sortedTxns2 = sortTransactions(deptData.dataset2.transactions, sortState2.field, sortState2.direction);
       html += `
-        <table class="betterbudgyt-mini-table">
+        <table class="betterbudgyt-mini-table" data-dataset="2" data-dept="${deptData.storeUID}">
           <thead>
             <tr>
-              <th>Description</th>
-              <th>Vendor</th>
+              ${buildSortableHeader('description', 'Description', sortState2, 2)}
+              ${buildSortableHeader('vendor', 'Vendor', sortState2, 2)}
               ${hideMonths ? '' : months.map(m => `<th>${m}</th>`).join('')}
-              <th class="betterbudgyt-total-col">Total</th>
+              ${buildSortableHeader('total', 'Total', sortState2, 2, 'betterbudgyt-total-col')}
             </tr>
           </thead>
           <tbody>
+            ${generateTransactionRowsHtml(sortedTxns2, comparisonData.dataset2, months, hideMonths)}
+          </tbody>
+        </table>
       `;
-      deptData.dataset2.transactions.forEach(t => {
-        const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
-        const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" data-folder="${escapeHtml(t.fileAttachment.folderName)}" data-href="${escapeHtml(comparisonData.dataset2.dataHref || '')}" title="Click to download file">📎</span>` : '';
-        const hasUID = !!t.plElementUID;
-        const descHasComment = t.comments?.description && hasUID;
-        const vendorHasComment = t.comments?.vendor && hasUID;
-        const totalHasComment = t.comments?.total && hasUID;
-        const descAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="description" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-        const vendorAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-        const totalAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="total" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-        const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
-        html += `
-          <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
-            <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
-            <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
-            ${hideMonths ? '' : months.map(m => {
-              const val = Math.abs(t.monthly?.[m] || 0);
-              const isCompact = val >= 10000;
-              const hasComment = t.comments?.[m] && hasUID;
-              const monthAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="${m}" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
-              return `<td class="betterbudgyt-mini-value${isCompact ? ' compact-value' : ''}${hasUID ? ' clickable-comment' : ''}${hasComment ? ' has-comment' : ''}"${monthAttrs}>${formatNumber(t.monthly?.[m] || 0)}</td>`;
-            }).join('')}
-            <td class="betterbudgyt-mini-total${hasUID ? ' clickable-comment' : ''}${totalHasComment ? ' has-comment' : ''}"${totalAttrs}>${formatNumber(t.total || 0)}</td>
-          </tr>
-        `;
-      });
-      html += '</tbody></table>';
     } else {
       html += '<div class="betterbudgyt-no-transactions">No transactions</div>';
     }
@@ -460,6 +482,9 @@
       
       // Setup card expand/collapse
       setupCardToggle(modal);
+      
+      // Setup sortable headers
+      setupSortableHeaders(modal, comparisonData);
       
       // Setup hide months toggle
       setupHideMonthsToggle(modal, comparisonData, hideMonths);
@@ -754,6 +779,72 @@
         card.classList.toggle('expanded');
         body.style.display = card.classList.contains('expanded') ? 'block' : 'none';
       }
+    });
+  }
+
+  function setupSortableHeaders(modal, comparisonData) {
+    const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    const sortStates = new Map();
+    
+    const getSortKey = (dataset, dept) => `${dataset}-${dept}`;
+    
+    const getSortState = (dataset, dept) => {
+      const key = getSortKey(dataset, dept);
+      if (!sortStates.has(key)) {
+        sortStates.set(key, { field: null, direction: 'asc' });
+      }
+      return sortStates.get(key);
+    };
+    
+    const toggleSortState = (dataset, dept, field) => {
+      const state = getSortState(dataset, dept);
+      if (state.field === field) {
+        state.direction = state.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.field = field;
+        state.direction = 'asc';
+      }
+      return state;
+    };
+    
+    modal.addEventListener('click', (event) => {
+      const header = event.target.closest('.sortable-header');
+      if (!header) return;
+      
+      const table = header.closest('.betterbudgyt-mini-table');
+      if (!table) return;
+      
+      const dataset = table.dataset.dataset;
+      const dept = table.dataset.dept;
+      const field = header.dataset.sortField;
+      
+      const newSortState = toggleSortState(dataset, dept, field);
+      const hideMonths = modal.querySelector('#hideMonthsToggle')?.checked ?? false;
+      
+      const datasetInfo = dataset === '1' ? comparisonData.dataset1 : comparisonData.dataset2;
+      const deptData = datasetInfo.departments?.find(d => d.storeUID === dept);
+      
+      if (!deptData?.transactions) return;
+      
+      const sortedTxns = sortTransactions(deptData.transactions, newSortState.field, newSortState.direction);
+      
+      const tbody = table.querySelector('tbody');
+      if (tbody) {
+        tbody.innerHTML = generateTransactionRowsHtml(sortedTxns, datasetInfo, months, hideMonths);
+      }
+      
+      table.querySelectorAll('.sortable-header').forEach(th => {
+        const thField = th.dataset.sortField;
+        const isActive = thField === newSortState.field;
+        th.classList.toggle('sortable-active', isActive);
+        
+        const labelOnly = th.textContent.replace(/[▲▼]/g, '').trim();
+        if (isActive) {
+          th.textContent = labelOnly + (newSortState.direction === 'asc' ? ' ▲' : ' ▼');
+        } else {
+          th.textContent = labelOnly;
+        }
+      });
     });
   }
 
