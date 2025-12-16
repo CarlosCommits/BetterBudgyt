@@ -82,6 +82,7 @@
   }
 
   const NO_SORT = { field: null, direction: 'asc' };
+  const MONTH_SORT_DEFAULT = { field: 'month', direction: 'asc' };
 
   // Get 3-letter month abbreviations for months with non-zero values
   function getActiveMonths(monthly, months) {
@@ -307,6 +308,7 @@
       const d2Count = deptData.dataset2?.transactions?.length || 0;
       
       if (isSingleDepartment) {
+        const defaultSort = hideMonths ? MONTH_SORT_DEFAULT : NO_SORT;
         tableHtml += `
           <div class="betterbudgyt-dept-card betterbudgyt-single-dept expanded" data-dept="${deptData.storeUID}">
             <div class="betterbudgyt-single-dept-header">
@@ -314,11 +316,12 @@
             </div>
 
             <div class="betterbudgyt-dept-card-body" style="display: block;">
-              ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode</div>'}
+              ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths, defaultSort, defaultSort) : '<div class="betterbudgyt-no-transactions">Class totals only mode</div>'}
             </div>
           </div>
         `;
       } else {
+        const defaultSort = hideMonths ? MONTH_SORT_DEFAULT : NO_SORT;
         tableHtml += `
           <div class="betterbudgyt-dept-card" data-dept="${deptData.storeUID}">
             <div class="betterbudgyt-dept-card-header">
@@ -345,7 +348,7 @@
               </div>
             </div>
             <div class="betterbudgyt-dept-card-body" style="display: none;">
-              ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths) : '<div class="betterbudgyt-no-transactions">Class totals only mode</div>'}
+              ${!classTotalsOnly ? generateDeptTransactionsHtml(deptData, comparisonData, months, hideMonths, defaultSort, defaultSort) : '<div class="betterbudgyt-no-transactions">Class totals only mode</div>'}
             </div>
           </div>
         `;
@@ -814,7 +817,9 @@
     const getSortState = (dataset, dept) => {
       const key = getSortKey(dataset, dept);
       if (!sortStates.has(key)) {
-        sortStates.set(key, { field: null, direction: 'asc' });
+        const hideMonths = modal.querySelector('#hideMonthsToggle')?.checked ?? false;
+        const defaultSort = hideMonths ? { field: 'month', direction: 'asc' } : { field: null, direction: 'asc' };
+        sortStates.set(key, defaultSort);
       }
       return sortStates.get(key);
     };
