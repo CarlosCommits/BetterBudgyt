@@ -826,10 +826,6 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   color: #475569;
 }
 
-.betterbudgyt-single-dept-header .betterbudgyt-dept-popout-btn {
-  margin-left: 0;
-}
-
 .betterbudgyt-dept-card-title {
   display: flex;
   align-items: center;
@@ -838,32 +834,6 @@ td.betterbudgyt-cell-selected a.hyperlink-hover:hover {
   min-width: 0;
 }
 
-.betterbudgyt-dept-popout-btn {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  color: #64748b;
-  padding: 6px 10px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 12px;
-  opacity: 1;
-  transition: all 0.2s;
-}
-
-.betterbudgyt-dept-card-header:hover .betterbudgyt-dept-popout-btn {
-  border-color: #cbd5e1;
-}
-
-.betterbudgyt-dept-popout-btn:hover {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
-  transform: translateY(-1px);
-}
 
 .betterbudgyt-dept-expand-btn {
   width: 28px;
