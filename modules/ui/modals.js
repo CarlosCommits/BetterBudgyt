@@ -30,30 +30,41 @@
     // Build the notes content HTML - render the Budgyt format properly
     let notesHtml = '';
     
-    // Split notes by the <br/> pattern that precedes each note entry
-    // Pattern: <br/><img class='img-circle layout-menu-image' src=... /><b >Author Date</b > : text
-    // Note: Budgyt sometimes adds spaces inside tags like <b > and </b >
-    const notePattern = /<br\s*\/?><img[^>]*>\s*<b\s*>([^<]+)<\/b\s*>\s*:\s*/gi;
-    const parts = decodedNote.split(notePattern);
+    // Parse notes using regex to find each note entry
+    // Format: <br/><img...><b>Author Date</b> [: ] text
+    // Note: Some notes (e.g., Budgyt Support) don't have the ": " separator
+    const noteEntryPattern = /<br\s*\/?><img[^>]*>\s*<b\s*>([^<]+)<\/b\s*>\s*:?\s*/gi;
+    let match;
+    const noteEntries = [];
+    let lastIndex = 0;
     
-    // If we have matches, parts will be: ['', 'Author1 Date1', 'text1', 'Author2 Date2', 'text2', ...]
-    if (parts.length > 1) {
-      // Skip first empty part, then process pairs of (author, text)
-      for (let i = 1; i < parts.length; i += 2) {
-        const author = (parts[i] || '').trim();
-        const text = (parts[i + 1] || '').trim();
-        // Get just the text until the next note starts (or end)
-        const cleanText = text.split(/<br\s*\/?>\s*<img/i)[0].trim();
+    while ((match = noteEntryPattern.exec(decodedNote)) !== null) {
+      noteEntries.push({
+        author: match[1].trim(),
+        startIndex: match.index,
+        textStartIndex: match.index + match[0].length
+      });
+      lastIndex = noteEntryPattern.lastIndex;
+    }
+    
+    if (noteEntries.length > 0) {
+      noteEntries.forEach((entry, idx) => {
+        const textEndIndex = idx < noteEntries.length - 1 
+          ? noteEntries[idx + 1].startIndex 
+          : decodedNote.length;
+        const rawText = decodedNote.substring(entry.textStartIndex, textEndIndex);
+        const cleanText = rawText.replace(/<br\s*\/?>\s*$/i, '').trim();
+        
         notesHtml += `
           <div class="betterbudgyt-note-entry">
             <div class="betterbudgyt-note-author">
               <img class="betterbudgyt-note-avatar" src="/assets/admin/layout/img/user-male-placeholder.png" />
-              <strong>${escapeHtml(author)}</strong>
+              <strong>${escapeHtml(entry.author)}</strong>
             </div>
             <div class="betterbudgyt-note-text">${escapeHtml(cleanText)}</div>
           </div>
         `;
-      }
+      });
     } else {
       // Fallback: just show the note content as-is (escaped for safety)
       notesHtml = `<div class="betterbudgyt-note-entry"><div class="betterbudgyt-note-text">${escapeHtml(decodedNote)}</div></div>`;
