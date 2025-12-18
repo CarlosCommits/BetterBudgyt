@@ -15,13 +15,15 @@
   const MONTH_ORDER = { 'Apr': 1, 'May': 2, 'Jun': 3, 'Jul': 4, 'Aug': 5, 'Sep': 6, 'Oct': 7, 'Nov': 8, 'Dec': 9, 'Jan': 10, 'Feb': 11, 'Mar': 12 };
 
   function getFirstActiveMonthIndex(monthly) {
-    if (!monthly) return 13;
+    if (!monthly) return 14;
+    const activeCount = Object.keys(MONTH_ORDER).filter(m => monthly[m] && monthly[m] !== 0).length;
+    if (activeCount === 12) return 13;
     for (const month of Object.keys(MONTH_ORDER)) {
       if (monthly[month] && monthly[month] !== 0) {
         return MONTH_ORDER[month];
       }
     }
-    return 13;
+    return 14;
   }
 
   function sortTransactions(transactions, sortField, sortDirection) {
@@ -85,9 +87,11 @@
   const MONTH_SORT_DEFAULT = { field: 'month', direction: 'asc' };
 
   // Get 3-letter month abbreviations for months with non-zero values
+  // Returns 'All' if all 12 months have values (cleaner display)
   function getActiveMonths(monthly, months) {
     if (!monthly) return '';
     const activeMonths = months.filter(m => monthly[m] && monthly[m] !== 0);
+    if (activeMonths.length === 12) return 'All';
     return activeMonths.join(', ');
   }
 
