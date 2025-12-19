@@ -382,7 +382,10 @@
   function showComparisonModal(comparisonData) {
     const modalId = `comparison-modal-${++state.comparisonModalCounter}`;
     
-    // Store comparison data in state for click handlers
+    // Store comparison data in Map keyed by modalId for multi-modal support
+    state.comparisonDataByModal.set(modalId, comparisonData);
+    
+    // Also set legacy global reference (points to last opened modal)
     state.currentComparisonData = comparisonData;
     
     const modal = document.createElement('div');
@@ -540,6 +543,7 @@
             // Update the comparison data
             comparisonData.dataset1 = freshData.dataset1;
             comparisonData.dataset2 = freshData.dataset2;
+            state.comparisonDataByModal.set(modalId, comparisonData);
             state.currentComparisonData = comparisonData;
             
             // Update summary cards with fresh totals and counts
@@ -938,6 +942,7 @@
     modal.querySelector('.betterbudgyt-comparison-modal-close').addEventListener('click', () => {
       const minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
       if (minimizedTab) minimizedTab.remove();
+      state.comparisonDataByModal.delete(modalId);
       modal.remove();
       cleanupMinimizedTabsContainer();
     });
@@ -976,6 +981,7 @@
           if (summaryCards[2]) summaryCards[2].textContent = formatNumber(newDataset1Total - newDataset2Total);
           
           Object.assign(comparisonData, newComparisonData);
+          state.comparisonDataByModal.set(modalId, comparisonData);
         } catch (error) {
           alert('Failed to refresh: ' + (error.message || 'Unknown error'));
         } finally {
@@ -1049,6 +1055,7 @@
       if (event.target === modal) {
         const minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
         if (minimizedTab) minimizedTab.remove();
+        state.comparisonDataByModal.delete(modalId);
         modal.remove();
         cleanupMinimizedTabsContainer();
       }
@@ -1059,6 +1066,7 @@
       if (event.key === 'Escape' && modal.style.display !== 'none') {
         const minimizedTab = document.querySelector(`.betterbudgyt-minimized-tab[data-modal-id="${modalId}"]`);
         if (minimizedTab) minimizedTab.remove();
+        state.comparisonDataByModal.delete(modalId);
         modal.remove();
         cleanupMinimizedTabsContainer();
         document.removeEventListener('keydown', handleEscape);
@@ -1107,13 +1115,28 @@
     }
   }
 
+  function getComparisonDataForElement(element) {
+    const modal = element?.closest('.betterbudgyt-comparison-modal');
+    if (!modal) return state.currentComparisonData;
+    
+    const modalId = modal.dataset.modalId;
+    return state.comparisonDataByModal.get(modalId) || state.currentComparisonData;
+  }
+
+  function getComparisonDataForModal(modal) {
+    if (!modal) return state.currentComparisonData;
+    const modalId = modal.dataset.modalId;
+    return state.comparisonDataByModal.get(modalId) || state.currentComparisonData;
+  }
+
   // Export to namespace
   window.BetterBudgyt.features.comparison.modal = {
     generateDeptTransactionsHtml,
     generateComparisonTable,
     exportComparisonToExcel,
     showComparisonModal,
-
+    getComparisonDataForElement,
+    getComparisonDataForModal,
     downloadAttachedFile
   };
 

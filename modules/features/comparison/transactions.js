@@ -461,8 +461,7 @@
         
         showTxStatus(overlay, 'Transaction saved successfully!', 'success');
         
-        // Refresh the comparison modal UI to show the new transaction and updated totals
-        refreshComparisonModalUI();
+        refreshComparisonModalUI(comparisonData);
         
         // Close modal after brief delay (like notes.js behavior)
         setTimeout(closeModal, 1500);
@@ -1134,11 +1133,9 @@
 
   // Update cache with new transaction
   async function updateCacheWithNewTransaction(description, monthlyValues, departmentInfo, datasetInfo, comparisonData) {
-    const state = window.BetterBudgyt.state;
-    const data = state?.currentComparisonData;
-    if (!data) return;
+    if (!comparisonData) return;
     
-    const targetDataset = datasetInfo.datasetIndex === 1 ? data.dataset1 : data.dataset2;
+    const targetDataset = datasetInfo.datasetIndex === 1 ? comparisonData.dataset1 : comparisonData.dataset2;
     const dept = targetDataset?.departments?.find(d => d.storeUID === departmentInfo.storeUID);
     
     if (dept) {
@@ -1187,85 +1184,79 @@
   }
 
   // Refresh the comparison modal UI after adding a transaction
-  function refreshComparisonModalUI() {
-    const state = window.BetterBudgyt.state;
-    const comparisonData = state?.currentComparisonData;
+  function refreshComparisonModalUI(comparisonData) {
     if (!comparisonData) {
-      console.warn('No comparison data in state to refresh');
+      console.warn('No comparison data provided to refresh');
       return;
     }
     
-    const modal = document.querySelector('.betterbudgyt-comparison-modal');
-    if (!modal) {
-      console.warn('Comparison modal not found in DOM');
-      return;
-    }
-    
-    const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
-    if (!tableContainer) {
-      console.warn('Table container not found in modal');
-      return;
-    }
+    document.querySelectorAll('.betterbudgyt-comparison-modal').forEach(modal => {
+      const modalModule = window.BetterBudgyt.features.comparison.modal;
+      const modalData = modalModule?.getComparisonDataForModal(modal);
+      if (modalData !== comparisonData) return;
+      
+      const tableContainer = modal.querySelector('.betterbudgyt-comparison-table-container');
+      if (!tableContainer) return;
 
-    // Update summary cards (top totals + variance)
-    const summaryCards = modal.querySelectorAll('.betterbudgyt-summary-card');
-    if (summaryCards.length >= 3) {
-      const d1Value = summaryCards[0].querySelector('.betterbudgyt-summary-card-value');
-      const d1Subtitle = summaryCards[0].querySelector('.betterbudgyt-summary-card-subtitle');
-      const d1Total = comparisonData.dataset1?.grandTotals?.total ?? comparisonData.dataset1?.totals?.total ?? 0;
-      const d1DeptCount = comparisonData.dataset1?.departments?.length || 0;
-      const d1TxCount = comparisonData.dataset1?.transactions?.length || 0;
-      if (d1Value) d1Value.textContent = formatNumber(d1Total);
-      if (d1Subtitle) d1Subtitle.textContent = `${d1DeptCount} departments · ${d1TxCount} transactions`;
+      const summaryCards = modal.querySelectorAll('.betterbudgyt-summary-card');
+      if (summaryCards.length >= 3) {
+        const d1Value = summaryCards[0].querySelector('.betterbudgyt-summary-card-value');
+        const d1Subtitle = summaryCards[0].querySelector('.betterbudgyt-summary-card-subtitle');
+        const d1Total = comparisonData.dataset1?.grandTotals?.total ?? comparisonData.dataset1?.totals?.total ?? 0;
+        const d1DeptCount = comparisonData.dataset1?.departments?.length || 0;
+        const d1TxCount = comparisonData.dataset1?.transactions?.length || 0;
+        if (d1Value) d1Value.textContent = formatNumber(d1Total);
+        if (d1Subtitle) d1Subtitle.textContent = `${d1DeptCount} departments · ${d1TxCount} transactions`;
 
-      const d2Value = summaryCards[1].querySelector('.betterbudgyt-summary-card-value');
-      const d2Subtitle = summaryCards[1].querySelector('.betterbudgyt-summary-card-subtitle');
-      const d2Total = comparisonData.dataset2?.grandTotals?.total ?? comparisonData.dataset2?.totals?.total ?? 0;
-      const d2DeptCount = comparisonData.dataset2?.departments?.length || 0;
-      const d2TxCount = comparisonData.dataset2?.transactions?.length || 0;
-      if (d2Value) d2Value.textContent = formatNumber(d2Total);
-      if (d2Subtitle) d2Subtitle.textContent = `${d2DeptCount} departments · ${d2TxCount} transactions`;
+        const d2Value = summaryCards[1].querySelector('.betterbudgyt-summary-card-value');
+        const d2Subtitle = summaryCards[1].querySelector('.betterbudgyt-summary-card-subtitle');
+        const d2Total = comparisonData.dataset2?.grandTotals?.total ?? comparisonData.dataset2?.totals?.total ?? 0;
+        const d2DeptCount = comparisonData.dataset2?.departments?.length || 0;
+        const d2TxCount = comparisonData.dataset2?.transactions?.length || 0;
+        if (d2Value) d2Value.textContent = formatNumber(d2Total);
+        if (d2Subtitle) d2Subtitle.textContent = `${d2DeptCount} departments · ${d2TxCount} transactions`;
 
-      const diffValue = summaryCards[2].querySelector('.betterbudgyt-summary-card-value');
-      if (diffValue) diffValue.textContent = formatNumber(d1Total - d2Total);
-    }
-    
-    // Preserve expanded department states
-    const expandedDepts = [];
-    modal.querySelectorAll('.betterbudgyt-dept-card.expanded').forEach(card => {
-      expandedDepts.push(card.dataset.dept);
-    });
-    
-    // Get current toggle states
-    const currentHideMonths = modal.querySelector('#hideMonthsToggle')?.checked ?? false;
-    const currentClassTotalsOnly = modal.querySelector('#classTotalsOnlyToggle')?.checked ?? false;
-    
-    // Re-render the table using modal.js generateComparisonTable
-    const { generateComparisonTable } = window.BetterBudgyt.features.comparison.modal;
-    if (!generateComparisonTable) {
-      console.error('generateComparisonTable not found in modal module');
-      return;
-    }
-    
-    tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, currentClassTotalsOnly);
-    
-    // Restore expanded states
-    expandedDepts.forEach(deptId => {
-      const card = tableContainer.querySelector(`.betterbudgyt-dept-card[data-dept="${deptId}"]`);
-      if (card) {
-        card.classList.add('expanded');
-        const body = card.querySelector('.betterbudgyt-dept-card-body');
-        if (body) body.style.display = 'block';
+        const diffValue = summaryCards[2].querySelector('.betterbudgyt-summary-card-value');
+        if (diffValue) diffValue.textContent = formatNumber(d1Total - d2Total);
       }
+    
+      // Preserve expanded department states
+      const expandedDepts = [];
+      modal.querySelectorAll('.betterbudgyt-dept-card.expanded').forEach(card => {
+        expandedDepts.push(card.dataset.dept);
+      });
+      
+      // Get current toggle states
+      const currentHideMonths = modal.querySelector('#hideMonthsToggle')?.checked ?? false;
+      const currentClassTotalsOnly = modal.querySelector('#classTotalsOnlyToggle')?.checked ?? false;
+      
+      // Re-render the table using modal.js generateComparisonTable
+      const { generateComparisonTable } = window.BetterBudgyt.features.comparison.modal;
+      if (!generateComparisonTable) {
+        console.error('generateComparisonTable not found in modal module');
+        return;
+      }
+      
+      tableContainer.innerHTML = generateComparisonTable(comparisonData, currentHideMonths, currentClassTotalsOnly);
+      
+      // Restore expanded states
+      expandedDepts.forEach(deptId => {
+        const card = tableContainer.querySelector(`.betterbudgyt-dept-card[data-dept="${deptId}"]`);
+        if (card) {
+          card.classList.add('expanded');
+          const body = card.querySelector('.betterbudgyt-dept-card-body');
+          if (body) body.style.display = 'block';
+        }
+      });
+      
+      // Re-setup context menu handlers for comments
+      const comments = window.BetterBudgyt.features.comparison.comments;
+      if (comments?.setupContextMenuHandlers) {
+        comments.setupContextMenuHandlers(modal, comparisonData);
+      }
+      
+      console.log('Comparison modal UI refreshed with new transaction');
     });
-    
-    // Re-setup context menu handlers for comments
-    const comments = window.BetterBudgyt.features.comparison.comments;
-    if (comments?.setupContextMenuHandlers) {
-      comments.setupContextMenuHandlers(modal, comparisonData);
-    }
-    
-    console.log('Comparison modal UI refreshed with new transaction');
   }
 
   // Export to namespace

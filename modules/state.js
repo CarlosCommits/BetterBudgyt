@@ -38,7 +38,10 @@
     // Modal counter for unique IDs
     comparisonModalCounter: 0,
     
-    // Current comparison data for click handlers
+    // Map of modalId -> comparisonData for multi-modal support
+    comparisonDataByModal: new Map(),
+    
+    // Current comparison data for click handlers (legacy - points to last opened modal)
     currentComparisonData: null,
 
     // URL tracking for navigation detection

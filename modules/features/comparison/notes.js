@@ -164,10 +164,11 @@
   // Update the note indicator in the UI after saving
   function updateNoteIndicator(plElementUID, datasetInfo, displayNoteText) {
     try {
-      // Update cached comparison data so future renders include the note
       const state = window.BetterBudgyt.state;
-      const data = state?.currentComparisonData;
-      if (data) {
+      
+      state.comparisonDataByModal.forEach((data, modalId) => {
+        if (!data) return;
+        
         const targetDatasets = [];
         if (datasetInfo?.datasetIndex === 1) targetDatasets.push(data.dataset1);
         else if (datasetInfo?.datasetIndex === 2) targetDatasets.push(data.dataset2);
@@ -182,11 +183,9 @@
             }
           });
         });
-      }
+      });
       
-      // Update the open modal DOM (if present)
-      const modal = document.querySelector('.betterbudgyt-comparison-modal');
-      if (modal) {
+      document.querySelectorAll('.betterbudgyt-comparison-modal').forEach(modal => {
         const descCells = modal.querySelectorAll(`.betterbudgyt-mini-desc[data-pl-element-uid="${plElementUID}"]`);
         descCells.forEach(cell => {
           const row = cell.closest('tr');
@@ -204,7 +203,7 @@
           icon.dataset.desc = cell.dataset.desc || icon.dataset.desc || (cell.textContent || '').trim();
           icon.title = 'Click to view note';
         });
-      }
+      });
       
       console.log('Note indicator updated for plElementUID:', plElementUID);
     } catch (e) {

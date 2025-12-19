@@ -112,22 +112,22 @@
           notes.showAddNoteModal(transactionData, datasetInfo);
         }
       } else if (action === 'add-transaction') {
-        // Use the transactions module to add a transaction
         const transactions = window.BetterBudgyt.features.comparison.transactions;
-        const state = window.BetterBudgyt.state;
-        if (transactions && state.currentComparisonData) {
-          // Get hideMonths state from modal toggle
-          const hideMonthsToggle = document.querySelector('#hideMonthsToggle');
+        const modalModule = window.BetterBudgyt.features.comparison.modal;
+        const comparisonData = modalModule?.getComparisonDataForElement(event.target);
+        
+        if (transactions && comparisonData) {
+          const modal = event.target.closest('.betterbudgyt-comparison-modal');
+          const hideMonthsToggle = modal?.querySelector('#hideMonthsToggle');
           const hideMonths = hideMonthsToggle ? hideMonthsToggle.checked : false;
           
-          // Build department info from transaction context
           const departmentInfo = {
             storeUID: transactionData.storeUID,
             departmentName: transactionData.departmentName,
             deptUID: datasetInfo.deptUID
           };
           
-          transactions.showAddTransactionModal(departmentInfo, datasetInfo, state.currentComparisonData, hideMonths);
+          transactions.showAddTransactionModal(departmentInfo, datasetInfo, comparisonData, hideMonths);
         }
       }
     });
