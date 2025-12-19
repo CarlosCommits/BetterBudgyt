@@ -55,7 +55,7 @@
   }
 
   // Show the add note modal
-  function showAddNoteModal(transactionData, datasetInfo) {
+  function showAddNoteModal(transactionData, datasetInfo, comparisonData) {
     // Remove any existing modal
     const existingModal = document.querySelector('.betterbudgyt-add-note-overlay');
     if (existingModal) existingModal.remove();
@@ -144,6 +144,27 @@
         
         // Update the visual indicator and cached data with the FULL note HTML (including all previous notes)
         updateNoteIndicator(transactionData.plElementUID, datasetInfo, result.fullNoteHtml);
+        
+        // Update cache with fetched transactions to ensure concurrent user safety
+        if (result.fetchedTransactions && comparisonData) {
+          updateCacheWithFetchedNoteData(result.fetchedTransactions, datasetInfo, comparisonData);
+          
+          // Trigger background refresh to get complete data (comments, file attachments)
+          if (comparisonData._refreshData) {
+            const { openDatasheetsParallel } = window.BetterBudgyt.features.comparison.dataFetcher;
+            const { cell1Data, cell2Data } = comparisonData._refreshData;
+            
+            openDatasheetsParallel(cell1Data, cell2Data, true)
+              .then(refreshResult => {
+                if (refreshResult?.data) {
+                  comparisonData.dataset1 = refreshResult.data.dataset1;
+                  comparisonData.dataset2 = refreshResult.data.dataset2;
+                  console.log('Background refresh completed after note save');
+                }
+              })
+              .catch(err => console.warn('Background refresh failed:', err));
+          }
+        }
         
         setTimeout(closeModal, 1500);
       } catch (error) {
@@ -877,8 +898,91 @@
       throw new Error('Server error occurred while saving note');
     }
     
-    // Return the full note HTML so the caller can update the cache
-    return { success: true, fullNoteHtml: newNoteHtml };
+    // Return the full note HTML AND the fetched transactions so the caller can update the cache
+    // This ensures concurrent user safety - cache is updated with server-fresh data
+    return { success: true, fullNoteHtml: newNoteHtml, fetchedTransactions: transactions };
+  }
+
+  const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+
+  function convertToDisplayFormat(fetchedTx) {
+    const total = Object.values(fetchedTx.monthly || {}).reduce((sum, v) => sum + (v || 0), 0);
+    return {
+      description: fetchedTx.description || '',
+      vendor: fetchedTx.vendor || '',
+      monthly: { ...fetchedTx.monthly },
+      total,
+      note: fetchedTx.existingNotes || '',
+      plElementUID: fetchedTx.plElementUID || null,
+      comments: {},
+      fileAttachment: null
+    };
+  }
+
+  function updateCacheWithFetchedNoteData(fetchedTransactions, datasetInfo, comparisonData) {
+    if (!comparisonData || !fetchedTransactions?.length) return;
+    
+    const targetDataset = datasetInfo.datasetIndex === 1 ? comparisonData.dataset1 : comparisonData.dataset2;
+    if (!targetDataset?.departments) return;
+    
+    const sampleTx = fetchedTransactions[0];
+    const storeUID = sampleTx?.storeUID;
+    if (!storeUID || storeUID === '-1') {
+      console.warn('[updateCacheWithFetchedNoteData] No valid storeUID in fetched transactions');
+      return;
+    }
+    
+    const dept = targetDataset.departments.find(d => d.storeUID === storeUID);
+    if (!dept) {
+      console.warn('[updateCacheWithFetchedNoteData] Department not found:', storeUID);
+      return;
+    }
+    
+    const convertedTransactions = fetchedTransactions.map(convertToDisplayFormat);
+    dept.transactions = convertedTransactions;
+    
+    const newDeptTotals = { total: 0 };
+    MONTHS.forEach(m => { newDeptTotals[m] = 0; });
+    
+    dept.transactions.forEach(tx => {
+      MONTHS.forEach(m => {
+        newDeptTotals[m] += tx.monthly?.[m] || 0;
+      });
+      newDeptTotals.total += tx.total || 0;
+    });
+    dept.totals = newDeptTotals;
+    
+    const oldDeptTotals = { total: 0 };
+    MONTHS.forEach(m => { oldDeptTotals[m] = 0; });
+    
+    targetDataset.transactions
+      ?.filter(t => t.storeUID === storeUID)
+      ?.forEach(t => {
+        MONTHS.forEach(m => {
+          oldDeptTotals[m] += t.monthly?.[m] || 0;
+        });
+        oldDeptTotals.total += t.total || 0;
+      });
+    
+    targetDataset.transactions = (targetDataset.transactions || [])
+      .filter(t => t.storeUID !== storeUID);
+    
+    dept.transactions.forEach(tx => {
+      targetDataset.transactions.push({
+        ...tx,
+        departmentName: dept.departmentName,
+        storeUID: storeUID
+      });
+    });
+    
+    if (targetDataset.grandTotals) {
+      MONTHS.forEach(m => {
+        targetDataset.grandTotals[m] = (targetDataset.grandTotals[m] || 0) - oldDeptTotals[m] + newDeptTotals[m];
+      });
+      targetDataset.grandTotals.total = (targetDataset.grandTotals.total || 0) - oldDeptTotals.total + newDeptTotals.total;
+    }
+    
+    console.log('[updateCacheWithFetchedNoteData] Cache updated with fetched data for dept:', storeUID);
   }
 
   // Parse cell/row data from click event for context menu

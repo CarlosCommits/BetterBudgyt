@@ -106,10 +106,11 @@
       } else if (action === 'view-comments') {
         viewExistingComments(cellData, transactionData, datasetInfo);
       } else if (action === 'add-note') {
-        // Use the notes module to add a note
         const notes = window.BetterBudgyt.features.comparison.notes;
+        const modalModule = window.BetterBudgyt.features.comparison.modal;
+        const comparisonData = modalModule?.getComparisonDataForElement(event.target);
         if (notes) {
-          notes.showAddNoteModal(transactionData, datasetInfo);
+          notes.showAddNoteModal(transactionData, datasetInfo, comparisonData);
         }
       } else if (action === 'add-transaction') {
         const transactions = window.BetterBudgyt.features.comparison.transactions;
