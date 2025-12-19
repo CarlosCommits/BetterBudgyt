@@ -1306,10 +1306,10 @@
         }
       });
       
-      // Re-setup context menu handlers for comments
-      const comments = window.BetterBudgyt.features.comparison.comments;
-      if (comments?.setupContextMenuHandlers) {
-        comments.setupContextMenuHandlers(modal, comparisonData);
+      // Re-setup context menu handlers
+      const contextMenu = window.BetterBudgyt.features.comparison.contextMenu;
+      if (contextMenu?.setupContextMenuHandlers) {
+        contextMenu.setupContextMenuHandlers(modal, comparisonData);
       }
       
       console.log('Comparison modal UI refreshed with new transaction');
