@@ -10,7 +10,6 @@
 
   const { escapeHtml, formatNumber } = window.BetterBudgyt.utils;
 
-  // Field mapping for API calls
   const FIELD_MAPPING = {
     'description': 'Description',
     'vendor': 'Vendor',
@@ -20,146 +19,12 @@
     'Dec': 'P9', 'Jan': 'P10', 'Feb': 'P11', 'Mar': 'P12'
   };
 
-  // Cached users list
   let cachedUsers = null;
 
-  // Create and show the context menu
-  function showContextMenu(event, cellData, transactionData, datasetInfo) {
-    event.preventDefault();
-    
-    // Remove any existing context menu
-    hideContextMenu();
-    
-    // Check if this dataset is editable for add transaction option
-    const transactions = window.BetterBudgyt.features.comparison.transactions;
-    const isEditable = transactions?.isDatasetEditable(datasetInfo);
-    const unlockedMonths = transactions?.getUnlockedMonths(datasetInfo) || [];
-    const canAddTransaction = isEditable && unlockedMonths.length > 0;
-    
-    const menu = document.createElement('div');
-    menu.className = 'betterbudgyt-context-menu';
-    menu.innerHTML = `
-      <div class="betterbudgyt-context-menu-item" data-action="add-comment">
-        <span class="betterbudgyt-context-menu-icon">💬</span>
-        Add Comment
-      </div>
-      <div class="betterbudgyt-context-menu-item" data-action="view-comments">
-        <span class="betterbudgyt-context-menu-icon">👁️</span>
-        View Comments
-      </div>
-      <div class="betterbudgyt-context-menu-divider"></div>
-      <div class="betterbudgyt-context-menu-item" data-action="add-note">
-        <span class="betterbudgyt-context-menu-icon">📝</span>
-        Add Note
-      </div>
-      ${canAddTransaction ? `
-      <div class="betterbudgyt-context-menu-divider"></div>
-      <div class="betterbudgyt-context-menu-item" data-action="add-transaction">
-        <span class="betterbudgyt-context-menu-icon">➕</span>
-        Add Transaction
-      </div>
-      ` : ''}
-    `;
-    
-    // Store the context data
-    menu.dataset.cellData = JSON.stringify(cellData);
-    menu.dataset.transactionData = JSON.stringify(transactionData);
-    menu.dataset.datasetInfo = JSON.stringify(datasetInfo);
-    
-    document.body.appendChild(menu);
-    
-    // Position the menu with viewport awareness to prevent cutoff
-    const menuRect = menu.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    
-    let left = event.pageX;
-    let top = event.pageY;
-    
-    // Check if menu would overflow right edge
-    if (event.clientX + menuRect.width > viewportWidth) {
-      left = event.pageX - menuRect.width;
-    }
-    
-    // Check if menu would overflow bottom edge
-    if (event.clientY + menuRect.height > viewportHeight) {
-      top = event.pageY - menuRect.height;
-    }
-    
-    // Ensure menu doesn't go off-screen to the left or top
-    if (left < window.scrollX) left = window.scrollX + 5;
-    if (top < window.scrollY) top = window.scrollY + 5;
-    
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
-    
-    // Handle menu item clicks
-    menu.addEventListener('click', (e) => {
-      const item = e.target.closest('.betterbudgyt-context-menu-item');
-      if (!item) return;
-      
-      const action = item.dataset.action;
-      hideContextMenu();
-      
-      if (action === 'add-comment') {
-        showAddCommentModal(cellData, transactionData, datasetInfo);
-      } else if (action === 'view-comments') {
-        viewExistingComments(cellData, transactionData, datasetInfo);
-      } else if (action === 'add-note') {
-        const notes = window.BetterBudgyt.features.comparison.notes;
-        const modalModule = window.BetterBudgyt.features.comparison.modal;
-        const comparisonData = modalModule?.getComparisonDataForElement(event.target);
-        if (notes) {
-          notes.showAddNoteModal(transactionData, datasetInfo, comparisonData);
-        }
-      } else if (action === 'add-transaction') {
-        const transactions = window.BetterBudgyt.features.comparison.transactions;
-        const modalModule = window.BetterBudgyt.features.comparison.modal;
-        const comparisonData = modalModule?.getComparisonDataForElement(event.target);
-        
-        if (transactions && comparisonData) {
-          const modal = event.target.closest('.betterbudgyt-comparison-modal');
-          const hideMonthsToggle = modal?.querySelector('#hideMonthsToggle');
-          const hideMonths = hideMonthsToggle ? hideMonthsToggle.checked : false;
-          
-          const departmentInfo = {
-            storeUID: transactionData.storeUID,
-            departmentName: transactionData.departmentName,
-            deptUID: datasetInfo.deptUID
-          };
-          
-          transactions.showAddTransactionModal(departmentInfo, datasetInfo, comparisonData, hideMonths);
-        }
-      }
-    });
-    
-    // Close menu when clicking elsewhere
-    setTimeout(() => {
-      document.addEventListener('click', hideContextMenuOnClick);
-      document.addEventListener('contextmenu', hideContextMenu);
-    }, 0);
-  }
-
-  function hideContextMenuOnClick(e) {
-    if (!e.target.closest('.betterbudgyt-context-menu')) {
-      hideContextMenu();
-    }
-  }
-
-  function hideContextMenu() {
-    const menu = document.querySelector('.betterbudgyt-context-menu');
-    if (menu) menu.remove();
-    document.removeEventListener('click', hideContextMenuOnClick);
-    document.removeEventListener('contextmenu', hideContextMenu);
-  }
-
-  // Fetch users list for the "To" dropdown
-  // Users are only available from the GetUserComments response or the DataInput page
   async function fetchUsersList(plElementUID, field) {
     if (cachedUsers && cachedUsers.length > 0) return cachedUsers;
     
     try {
-      // If we have plElementUID, try to get users from GetUserComments response
       if (plElementUID && field) {
         const apiField = FIELD_MAPPING[field] || field;
         const response = await fetch('/Budget/GetUserComments', {
@@ -177,14 +42,12 @@
         
         if (response.ok) {
           const html = await response.text();
-          // Parse user list from the response HTML
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
           const userSelect = doc.querySelector('select[name="lstUsers"], select.multiselectLst.group');
           
           if (userSelect) {
             cachedUsers = Array.from(userSelect.options).map(opt => {
-              // Format: username|userId|displayName
               const parts = opt.value.split('|');
               return {
                 value: opt.value,
@@ -192,7 +55,7 @@
                 userId: parts[1] || '',
                 username: parts[0] || ''
               };
-            }).filter(u => u.userId); // Filter out empty entries
+            }).filter(u => u.userId);
             
             console.log('Fetched users from GetUserComments:', cachedUsers.length);
             return cachedUsers;
@@ -200,8 +63,6 @@
         }
       }
       
-      // Fallback: Try to get from page's existing user dropdown (not class dropdown)
-      // Use more specific selector to avoid class/department dropdowns
       const existingSelect = document.querySelector('select[name="lstUsers"]');
       if (existingSelect) {
         cachedUsers = Array.from(existingSelect.options).map(opt => {
@@ -216,7 +77,6 @@
         return cachedUsers;
       }
       
-      // No users found - return empty array
       cachedUsers = [];
       return cachedUsers;
     } catch (e) {
@@ -225,14 +85,11 @@
     }
   }
 
-  // Show the Add Comment modal
   async function showAddCommentModal(cellData, transactionData, datasetInfo) {
-    // Remove any existing modal
     const existingModal = document.querySelector('.betterbudgyt-add-comment-overlay');
     if (existingModal) existingModal.remove();
     
     const fieldLabel = getFieldLabel(cellData.field);
-    // Fetch users list from GetUserComments API (requires plElementUID)
     const users = await fetchUsersList(transactionData.plElementUID, cellData.field);
     
     const overlay = document.createElement('div');
@@ -290,11 +147,9 @@
     
     document.body.appendChild(overlay);
     
-    // Focus the textarea
     const textarea = overlay.querySelector('.betterbudgyt-add-comment-text');
     textarea.focus();
     
-    // Event handlers
     const closeModal = () => overlay.remove();
     
     overlay.querySelector('.betterbudgyt-add-comment-close').addEventListener('click', closeModal);
@@ -303,7 +158,6 @@
       if (e.target === overlay) closeModal();
     });
     
-    // Escape key closes
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
         closeModal();
@@ -312,7 +166,6 @@
     };
     document.addEventListener('keydown', handleEscape);
     
-    // Save button
     overlay.querySelector('.betterbudgyt-add-comment-save').addEventListener('click', async () => {
       const commentText = textarea.value.trim();
       if (!commentText) {
@@ -336,13 +189,11 @@
         await saveComment(cellData, transactionData, datasetInfo, commentText, selectedUsers);
         showStatus(overlay, 'Comment saved successfully!', 'success');
         
-        // Add has-comment class to all matching cells (visual feedback without refresh)
         const cellSelector = `[data-pl-element-uid="${transactionData.plElementUID}"][data-field="${cellData.field}"]`;
         document.querySelectorAll(cellSelector).forEach(cell => {
           cell.classList.add('has-comment');
         });
         
-        // Update the cached comparison data so the comment persists on modal reopen
         updateCachedCommentFlag(transactionData.plElementUID, cellData.field, datasetInfo);
         
         setTimeout(closeModal, 1500);
@@ -361,23 +212,19 @@
     statusEl.className = `betterbudgyt-add-comment-status ${type}`;
   }
 
-  // Update cached comparison data to mark a cell as having a comment
   function updateCachedCommentFlag(plElementUID, field, datasetInfo) {
     const state = window.BetterBudgyt.state;
     const comparisonData = state.currentComparisonData;
     if (!comparisonData) return;
     
-    // Determine which dataset to update
     const datasetKey = datasetInfo.datasetIndex === 1 ? 'dataset1' : 'dataset2';
     const departments = comparisonData[datasetKey]?.departments;
     if (!departments) return;
     
-    // Find the transaction with matching plElementUID and update its comments
     for (const dept of departments) {
       if (!dept.transactions) continue;
       for (const tx of dept.transactions) {
         if (tx.plElementUID === plElementUID) {
-          // Initialize comments object if needed
           tx.comments = tx.comments || {};
           tx.comments[field] = true;
           console.log(`Updated cached comment flag: ${datasetKey}, plElementUID=${plElementUID}, field=${field}`);
@@ -399,8 +246,6 @@
     return labels[field] || field;
   }
 
-  // Activate the correct budget session before making API calls
-  // This must be called with CheckBudgetInSession POST before SaveUserComments
   async function activateBudgetSession(datasetInfo) {
     const budgetId = parseInt(datasetInfo.budgetId);
     const budgetYear = parseInt(datasetInfo.budgetYear);
@@ -412,7 +257,6 @@
     
     console.log('Activating budget session with CheckBudgetInSession:', { budgetId, budgetYear });
     
-    // Call CheckBudgetInSession to activate the correct budget session
     const response = await fetch('/Budget/CheckBudgetInSession', {
       method: 'POST',
       headers: {
@@ -433,7 +277,6 @@
     }
   }
 
-  // Initialize comment session by calling GetUserComments first (like Budgyt does)
   async function initializeCommentSession(plElementUID, field) {
     const apiField = FIELD_MAPPING[field] || field;
     
@@ -461,9 +304,7 @@
     }
   }
 
-  // Save a comment via the API
   async function saveComment(cellData, transactionData, datasetInfo, commentText, selectedUsers) {
-    // First, activate the correct budget session via CheckBudgetInSession
     await activateBudgetSession(datasetInfo);
     
     const plElementUID = transactionData.plElementUID;
@@ -473,30 +314,24 @@
     
     const apiField = FIELD_MAPPING[cellData.field] || cellData.field;
     
-    // Initialize comment session by calling GetUserComments first (like Budgyt does natively)
     await initializeCommentSession(plElementUID, cellData.field);
     
-    // Build notification data - use -1 when no users selected (not empty string)
     const userIds = selectedUsers.map(u => u.userId).filter(id => id);
     const notifyUserIdCSV = userIds.length > 0 ? userIds.join(',') : '-1';
     const notificationText = 'mentioned you in a comment about ';
     
-    // Build the comment text with @mentions prepended (like Budgyt does natively)
     let finalCommentText = commentText;
     if (selectedUsers.length > 0) {
-      // Prepend @username for each selected user
       const mentions = selectedUsers.map(u => `@${u.username}`).join(' ');
       finalCommentText = `${mentions} ${commentText}`;
     }
     
-    // Extract category UID from groupedcategory if available
     let categoryUID = datasetInfo.categoryUID;
     if (!categoryUID && datasetInfo.groupedcategory) {
       const parts = datasetInfo.groupedcategory.split('|');
       categoryUID = parts[parts.length - 1];
     }
     
-    // Build the DataInput referer URL
     const budgetId = parseInt(datasetInfo.budgetId) || 86;
     const budgetYear = parseInt(datasetInfo.budgetYear) || new Date().getFullYear();
     const refererUrl = `${window.location.origin}/Budget/DataInput/${budgetId}/${budgetYear}`;
@@ -504,7 +339,7 @@
     const requestBody = {
       PlElementUID: parseInt(plElementUID),
       CommentDoneOnField: apiField,
-      CommentText: finalCommentText,  // Include @mentions if users selected
+      CommentText: finalCommentText,
       NotifyUserIdCSV: notifyUserIdCSV,
       NotificationText: notificationText,
       StoreUID: parseInt(transactionData.storeUID) || 0,
@@ -537,7 +372,6 @@
     return html;
   }
 
-  // View existing comments
   async function viewExistingComments(cellData, transactionData, datasetInfo) {
     const plElementUID = transactionData.plElementUID;
     if (!plElementUID) {
@@ -545,182 +379,20 @@
       return;
     }
     
-    // Use the existing fetchAndShowComment function from modals
     const { fetchAndShowComment } = window.BetterBudgyt.ui.modals;
     fetchAndShowComment(plElementUID, cellData.field, transactionData.description || 'Item', {
       onAddComment: () => {
-        // Open the add comment modal with the same context
         showAddCommentModal(cellData, transactionData, datasetInfo);
       }
     });
   }
 
-  // Parse cell data from a clicked element in the comparison table
-  function parseCellFromClick(element, comparisonData) {
-    // Find the transaction row
-    const row = element.closest('tr');
-    if (!row) return null;
-    
-    // Find the department card
-    const card = element.closest('.betterbudgyt-dept-card');
-    const deptId = card ? card.dataset.dept : null;
-    
-    // Find the dataset section (1 or 2)
-    const section = element.closest('.betterbudgyt-transactions-section');
-    const isDataset1 = section?.classList.contains('betterbudgyt-transactions-section-1');
-    const isDataset2 = section?.classList.contains('betterbudgyt-transactions-section-2');
-    
-    // Determine which dataset
-    const datasetIndex = isDataset1 ? 1 : isDataset2 ? 2 : null;
-    const datasetSource = isDataset1 ? comparisonData.dataset1 : 
-                          isDataset2 ? comparisonData.dataset2 : null;
-    
-    if (!datasetSource || !datasetIndex) return null;
-    
-    // Create datasetInfo with index for cache updates
-    const datasetInfo = { ...datasetSource, datasetIndex };
-    
-    // Find department data
-    const department = datasetInfo.departments?.find(d => d.storeUID === deptId) || {};
-    
-    // Determine field type
-    let field = 'description';
-    let value;
-    
-    if (element.classList.contains('betterbudgyt-mini-desc')) {
-      field = 'description';
-      value = element.textContent.trim();
-    } else if (element.classList.contains('betterbudgyt-mini-vendor')) {
-      field = 'vendor';
-      value = element.textContent.trim();
-    } else if (element.classList.contains('betterbudgyt-mini-total')) {
-      field = 'total';
-      value = parseFloat(element.textContent.replace(/,/g, '')) || 0;
-    } else if (element.classList.contains('betterbudgyt-mini-value')) {
-      // Monthly value - get month from column position
-      const cells = Array.from(row.querySelectorAll('td'));
-      const cellIndex = cells.indexOf(element);
-      const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-      // Account for desc and vendor columns
-      const monthIndex = cellIndex - 2;
-      if (monthIndex >= 0 && monthIndex < months.length) {
-        field = months[monthIndex];
-        value = parseFloat(element.textContent.replace(/,/g, '')) || 0;
-      }
-    }
-    
-    // Get transaction data from the row
-    const descCell = row.querySelector('.betterbudgyt-mini-desc');
-    const vendorCell = row.querySelector('.betterbudgyt-mini-vendor');
-    const totalCell = row.querySelector('.betterbudgyt-mini-total');
-    
-    // Try to find plElementUID from existing data attributes
-    let plElementUID = element.dataset.plElementUid || 
-                       descCell?.dataset.plElementUid || 
-                       null;
-    
-    // If not found, try to match against transactions
-    if (!plElementUID && department.transactions) {
-      const descText = descCell?.textContent?.replace(/📝\s*/, '').trim();
-      const vendorText = vendorCell?.textContent?.trim();
-      const totalValue = parseFloat(totalCell?.textContent?.replace(/,/g, '') || '0');
-      
-      const matchingTx = department.transactions.find(t => 
-        t.description === descText || 
-        (t.vendor === vendorText && Math.abs((t.total || 0) - totalValue) < 0.01)
-      );
-      
-      if (matchingTx) {
-        plElementUID = matchingTx.plElementUID;
-      }
-    }
-    
-    const transactionData = {
-      description: descCell?.textContent?.replace(/📝\s*/, '').trim() || '',
-      vendor: vendorCell?.textContent?.trim() || '',
-      total: parseFloat(totalCell?.textContent?.replace(/,/g, '') || '0'),
-      plElementUID: plElementUID,
-      storeUID: deptId,
-      departmentName: department.departmentName || deptId
-    };
-    
-    const cellData = {
-      field,
-      value
-    };
-    
-    return { cellData, transactionData, datasetInfo };
-  }
-
-  // Setup context menu handlers on a modal
-  function setupContextMenuHandlers(modal, comparisonData) {
-    modal.addEventListener('contextmenu', (event) => {
-      const target = event.target;
-      
-      // Check if clicked on a valid cell
-      const cell = target.closest('.betterbudgyt-mini-desc, .betterbudgyt-mini-vendor, .betterbudgyt-mini-value, .betterbudgyt-mini-total');
-      if (!cell) return;
-      
-      // Parse the cell context
-      const parsed = parseCellFromClick(cell, comparisonData);
-      if (!parsed) return;
-      
-      const { cellData, transactionData, datasetInfo } = parsed;
-      
-      // Check if we have the required plElementUID
-      if (!transactionData.plElementUID) {
-        console.warn('No plElementUID found for this cell, comments may not work');
-      }
-      
-      showContextMenu(event, cellData, transactionData, datasetInfo);
-    });
-  }
-
-  // Add CSS styles for context menu and modal
   function injectStyles() {
     if (document.getElementById('betterbudgyt-comments-styles')) return;
     
     const style = document.createElement('style');
     style.id = 'betterbudgyt-comments-styles';
     style.textContent = `
-      /* Context Menu */
-      .betterbudgyt-context-menu {
-        position: fixed;
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        padding: 4px 0;
-        min-width: 160px;
-        z-index: 10002;
-        border: 1px solid #e2e8f0;
-      }
-      
-      .betterbudgyt-context-menu-item {
-        padding: 8px 16px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 14px;
-        color: #334155;
-        transition: background 0.15s;
-      }
-      
-      .betterbudgyt-context-menu-item:hover {
-        background: #f1f5f9;
-      }
-      
-      .betterbudgyt-context-menu-icon {
-        font-size: 14px;
-      }
-      
-      .betterbudgyt-context-menu-divider {
-        height: 1px;
-        background: #e2e8f0;
-        margin: 4px 0;
-      }
-      
-      /* Add Comment Modal */
       .betterbudgyt-add-comment-overlay {
         position: fixed;
         top: 0;
@@ -934,21 +606,15 @@
     document.head.appendChild(style);
   }
 
-  // Initialize comments functionality
   function init() {
     injectStyles();
   }
 
-  // Export to namespace
   window.BetterBudgyt.features.comparison.comments = {
     init,
-    showContextMenu,
-    hideContextMenu,
     showAddCommentModal,
     saveComment,
     viewExistingComments,
-    parseCellFromClick,
-    setupContextMenuHandlers,
     fetchUsersList
   };
 

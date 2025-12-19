@@ -36,6 +36,7 @@
         "modules/features/comparison/transactions.js",
         "modules/features/comparison/excel-export.js",
         "modules/features/comparison/modal.js",
+        "modules/features/comparison/context-menu.js",
         "modules/features/comparison/comments.js",
         "modules/features/comparison/notes.js",
         "modules/observers.js",

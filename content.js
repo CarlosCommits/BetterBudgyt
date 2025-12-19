@@ -50,7 +50,6 @@
       }
     }
     
-    // Check for clickable comment cell click
     const commentCell = event.target.closest('.clickable-comment');
     if (commentCell) {
       const plElementUID = commentCell.dataset.plElementUid;
@@ -58,15 +57,17 @@
       const desc = commentCell.dataset.desc;
       if (plElementUID && field) {
         event.stopPropagation();
-        // Get context for Add Comment button using comparison module
-        const comparisonData = state.currentComparisonData;
+        const modalModule = comparison.modal;
+        const comparisonData = modalModule?.getComparisonDataForElement
+          ? modalModule.getComparisonDataForElement(commentCell)
+          : state.currentComparisonData;
         const comments = comparison.comments;
+        const contextMenu = comparison.contextMenu;
         
         modals.fetchAndShowComment(plElementUID, field, desc, {
           onAddComment: () => {
-            // Parse cell data and open add comment modal
-            if (comparisonData && comments) {
-              const parsed = comments.parseCellFromClick(commentCell, comparisonData);
+            if (comparisonData && comments && contextMenu) {
+              const parsed = contextMenu.parseCellFromClick(commentCell, comparisonData);
               if (parsed) {
                 comments.showAddCommentModal(parsed.cellData, parsed.transactionData, parsed.datasetInfo);
               }

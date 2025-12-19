@@ -525,6 +525,12 @@
       // Setup control buttons
       setupModalControls(modal, modalId, comparisonData, hideMonths);
       
+      // Setup context menu
+      const contextMenu = window.BetterBudgyt.features.comparison.contextMenu;
+      if (contextMenu?.setupContextMenuHandlers) {
+        contextMenu.setupContextMenuHandlers(modal, comparisonData);
+      }
+      
       // Handle background refresh if data was served from cache
       if (comparisonData._refreshPromise) {
         const refreshIndicator = modal.querySelector('.betterbudgyt-refresh-indicator');
@@ -597,8 +603,8 @@
               
               // Note: Card toggle listener is already on modal (event delegation), no need to re-add
               
-              // Re-setup context menu handlers for comments
-              const { setupContextMenuHandlers } = window.BetterBudgyt.features.comparison.comments;
+              // Re-setup context menu handlers
+              const { setupContextMenuHandlers } = window.BetterBudgyt.features.comparison.contextMenu;
               if (setupContextMenuHandlers) {
                 setupContextMenuHandlers(modal, comparisonData);
               }
@@ -1108,11 +1114,8 @@
         }
       }
     });
-    
-    // Setup right-click context menu for comments
-    if (window.BetterBudgyt.features.comparison.comments) {
-      window.BetterBudgyt.features.comparison.comments.setupContextMenuHandlers(modal, comparisonData);
-    }
+
+
   }
 
   function getComparisonDataForElement(element) {
