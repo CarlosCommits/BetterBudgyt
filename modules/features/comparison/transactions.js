@@ -457,13 +457,36 @@
       showTxStatus(overlay, 'Saving transaction...', 'info');
       
       try {
-        await saveNewTransaction(description, monthlyValues, departmentInfo, targetDatasetInfo, comparisonData);
+        const result = await saveNewTransaction(description, monthlyValues, departmentInfo, targetDatasetInfo, comparisonData);
+        
+        updateCacheWithFetchedData(
+          result.existingTransactions,
+          result.newTransaction,
+          departmentInfo,
+          targetDatasetInfo,
+          comparisonData
+        );
         
         showTxStatus(overlay, 'Transaction saved successfully!', 'success');
         
         refreshComparisonModalUI(comparisonData);
         
-        // Close modal after brief delay (like notes.js behavior)
+        if (comparisonData._refreshData) {
+          const { openDatasheetsParallel } = window.BetterBudgyt.features.comparison.dataFetcher;
+          const { cell1Data, cell2Data } = comparisonData._refreshData;
+          
+          openDatasheetsParallel(cell1Data, cell2Data, true)
+            .then(refreshResult => {
+              if (refreshResult?.data) {
+                comparisonData.dataset1 = refreshResult.data.dataset1;
+                comparisonData.dataset2 = refreshResult.data.dataset2;
+                refreshComparisonModalUI(comparisonData);
+                console.log('Background refresh completed after transaction save');
+              }
+            })
+            .catch(err => console.warn('Background refresh failed:', err));
+        }
+        
         setTimeout(closeModal, 1500);
         
       } catch (error) {
@@ -1125,62 +1148,96 @@
     
     console.log('Transaction saved successfully');
     
-    // Step 7: Update cache
-    await updateCacheWithNewTransaction(description, monthlyValues, departmentInfo, datasetInfo, comparisonData);
-    
-    return { success: true };
+    return { 
+      success: true, 
+      existingTransactions,
+      newTransaction: { description, monthlyValues }
+    };
   }
 
-  // Update cache with new transaction
-  async function updateCacheWithNewTransaction(description, monthlyValues, departmentInfo, datasetInfo, comparisonData) {
+  function convertToDisplayFormat(fetchedTx) {
+    const total = Object.values(fetchedTx.monthly || {}).reduce((sum, v) => sum + (v || 0), 0);
+    return {
+      description: fetchedTx.description || '',
+      vendor: fetchedTx.vendor || '',
+      monthly: { ...fetchedTx.monthly },
+      total,
+      note: fetchedTx.existingNotes || '',
+      plElementUID: fetchedTx.plElementUID || null,
+      comments: {},
+      fileAttachment: null
+    };
+  }
+
+  function updateCacheWithFetchedData(existingTransactions, newTxInfo, departmentInfo, datasetInfo, comparisonData) {
     if (!comparisonData) return;
     
     const targetDataset = datasetInfo.datasetIndex === 1 ? comparisonData.dataset1 : comparisonData.dataset2;
     const dept = targetDataset?.departments?.find(d => d.storeUID === departmentInfo.storeUID);
     
-    if (dept) {
-      const total = Object.values(monthlyValues).reduce((sum, v) => sum + v, 0);
-      
-      const newTx = {
-        description,
-        vendor: '',
-        monthly: { ...monthlyValues },
-        total,
-        note: '',
-        plElementUID: null, // Will be assigned by server on next refresh
-        comments: {},
-        fileAttachment: null
-      };
-      
-      dept.transactions = dept.transactions || [];
-      dept.transactions.push(newTx);
-      
-      // Update department totals
-      if (dept.totals) {
+    if (!dept) {
+      console.warn('Department not found in cache:', departmentInfo.storeUID);
+      return;
+    }
+    
+    const convertedTransactions = (existingTransactions || []).map(convertToDisplayFormat);
+    
+    const newTxTotal = Object.values(newTxInfo.monthlyValues || {}).reduce((sum, v) => sum + (v || 0), 0);
+    const newTx = {
+      description: newTxInfo.description,
+      vendor: '',
+      monthly: { ...newTxInfo.monthlyValues },
+      total: newTxTotal,
+      note: '',
+      plElementUID: null,
+      comments: {},
+      fileAttachment: null
+    };
+    
+    dept.transactions = [...convertedTransactions, newTx];
+    
+    const newDeptTotals = { total: 0 };
+    MONTHS.forEach(m => { newDeptTotals[m] = 0; });
+    
+    dept.transactions.forEach(tx => {
+      MONTHS.forEach(m => {
+        newDeptTotals[m] += tx.monthly?.[m] || 0;
+      });
+      newDeptTotals.total += tx.total || 0;
+    });
+    dept.totals = newDeptTotals;
+    
+    const oldDeptTotals = { total: 0 };
+    MONTHS.forEach(m => { oldDeptTotals[m] = 0; });
+    
+    targetDataset.transactions
+      ?.filter(t => t.storeUID === departmentInfo.storeUID)
+      ?.forEach(t => {
         MONTHS.forEach(m => {
-          dept.totals[m] = (dept.totals[m] || 0) + (monthlyValues[m] || 0);
+          oldDeptTotals[m] += t.monthly?.[m] || 0;
         });
-        dept.totals.total = (dept.totals.total || 0) + total;
-      }
-      
-      // Update dataset grand totals
-      if (targetDataset.grandTotals) {
-        MONTHS.forEach(m => {
-          targetDataset.grandTotals[m] = (targetDataset.grandTotals[m] || 0) + (monthlyValues[m] || 0);
-        });
-        targetDataset.grandTotals.total = (targetDataset.grandTotals.total || 0) + total;
-      }
-      
-      // Also add to transactions array
-      targetDataset.transactions = targetDataset.transactions || [];
+        oldDeptTotals.total += t.total || 0;
+      });
+    
+    targetDataset.transactions = (targetDataset.transactions || [])
+      .filter(t => t.storeUID !== departmentInfo.storeUID);
+    
+    dept.transactions.forEach(tx => {
       targetDataset.transactions.push({
-        ...newTx,
+        ...tx,
         departmentName: departmentInfo.departmentName,
         storeUID: departmentInfo.storeUID
       });
-      
-      console.log('Cache updated with new transaction:', description);
+    });
+    
+    if (targetDataset.grandTotals) {
+      MONTHS.forEach(m => {
+        targetDataset.grandTotals[m] = (targetDataset.grandTotals[m] || 0) - oldDeptTotals[m] + newDeptTotals[m];
+      });
+      targetDataset.grandTotals.total = (targetDataset.grandTotals.total || 0) - oldDeptTotals.total + newDeptTotals.total;
     }
+    
+    console.log('Cache updated with fetched data + new transaction:', newTxInfo.description);
   }
 
   // Refresh the comparison modal UI after adding a transaction
