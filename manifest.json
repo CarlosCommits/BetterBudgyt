@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BetterBudgyt",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Enhance Budgyt with customizable variance calculations",
   "permissions": [
     "storage",
