@@ -1,0 +1,21 @@
+{
+  "name": "betterbudgyt",
+  "version": "1.5.0",
+  "description": "Chrome extension that enhances Budgyt dashboards",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tech-esa/BetterBudgyt.git"
+  },
+  "author": "ESA",
+  "license": "MIT"
+}

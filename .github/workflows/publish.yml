@@ -1,0 +1,48 @@
+name: Publish to Chrome Web Store
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Upload to Chrome Web Store
+        uses: browser-actions/release-chrome-extension@latest
+        with:
+          extension-id: cbepjjoaokdbnpnnclkoipcehcpandgp
+          extension-path: BetterBudgyt-v${{ steps.version.outputs.VERSION }}.zip
+          oauth-client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          oauth-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          oauth-refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: BetterBudgyt-v${{ steps.version.outputs.VERSION }}.zip
+          generate_release_notes: true
