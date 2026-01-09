@@ -2626,3 +2626,250 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
 .betterbudgyt-single-dept-header .betterbudgyt-dept-name {
   flex: 1;
 }
+
+/* =====================================================
+   DELETE TRANSACTION STYLES
+   ===================================================== */
+
+/* Delete button in transaction rows */
+.betterbudgyt-mini-actions-header {
+  width: 32px;
+  min-width: 32px;
+  text-align: center;
+  padding: 4px 2px !important;
+}
+
+.betterbudgyt-mini-actions {
+  width: 32px;
+  min-width: 32px;
+  text-align: center;
+  padding: 4px 2px !important;
+}
+
+.betterbudgyt-delete-tx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.betterbudgyt-delete-tx-btn:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.betterbudgyt-delete-tx-btn:active {
+  background: #fee2e2;
+  transform: scale(0.95);
+}
+
+.betterbudgyt-delete-tx-btn svg {
+  display: block;
+}
+
+/* Delete confirmation modal overlay */
+.betterbudgyt-delete-tx-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10003;
+  animation: bb-delete-fadeIn 0.15s ease-out;
+}
+
+@keyframes bb-delete-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Delete confirmation modal */
+.betterbudgyt-delete-tx-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  width: 420px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: bb-delete-slideUp 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes bb-delete-slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Delete modal header */
+.betterbudgyt-delete-tx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #fff;
+}
+
+.betterbudgyt-delete-tx-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.betterbudgyt-delete-tx-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.betterbudgyt-delete-tx-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Delete modal content */
+.betterbudgyt-delete-tx-content {
+  padding: 20px;
+}
+
+/* Warning banner */
+.betterbudgyt-delete-tx-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.betterbudgyt-delete-tx-warning-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+/* Transaction details */
+.betterbudgyt-delete-tx-details {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.betterbudgyt-delete-tx-detail-row {
+  padding: 6px 0;
+  font-size: 14px;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.betterbudgyt-delete-tx-detail-row:last-child {
+  border-bottom: none;
+}
+
+.betterbudgyt-delete-tx-detail-row strong {
+  color: #1e293b;
+  display: inline-block;
+  min-width: 100px;
+}
+
+/* Delete modal footer */
+.betterbudgyt-delete-tx-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.betterbudgyt-delete-tx-status {
+  font-size: 13px;
+  flex: 1;
+}
+
+.betterbudgyt-delete-tx-status.info {
+  color: #3b82f6;
+}
+
+.betterbudgyt-delete-tx-status.success {
+  color: #16a34a;
+}
+
+.betterbudgyt-delete-tx-status.error {
+  color: #dc2626;
+}
+
+.betterbudgyt-delete-tx-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.betterbudgyt-delete-tx-cancel {
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.betterbudgyt-delete-tx-cancel:hover {
+  background: #f3f4f6;
+}
+
+.betterbudgyt-delete-tx-confirm {
+  padding: 8px 20px;
+  border: none;
+  background: #dc2626;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.betterbudgyt-delete-tx-confirm:hover {
+  background: #b91c1c;
+}
+
+.betterbudgyt-delete-tx-confirm:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Has delete column modifier for tables */
+.has-delete-col .betterbudgyt-mini-table th:last-child,
+.has-delete-col .betterbudgyt-mini-table td:last-child {
+  border-left: 1px solid #e2e8f0;
+}

@@ -97,10 +97,11 @@
 
   function generateTransactionRowsHtml(transactions, datasetInfo, months, hideMonths) {
     let html = '';
+    
     transactions.forEach(t => {
       const noteIcon = t.note ? `<span class="betterbudgyt-note-icon" data-note="${escapeHtml(t.note)}" data-desc="${escapeHtml(t.description || 'No Description')}" title="Click to view note">📝</span>` : '';
       const fileIcon = t.fileAttachment?.hasFile ? `<span class="betterbudgyt-file-icon" data-folder="${escapeHtml(t.fileAttachment.folderName)}" data-href="${escapeHtml(datasetInfo.dataHref || '')}" title="Click to download file">📎</span>` : '';
-      const hasUID = !!t.plElementUID;
+      const hasUID = !!t.plElementUID && t.plElementUID !== '-1';
       const descHasComment = t.comments?.description && hasUID;
       const vendorHasComment = t.comments?.vendor && hasUID;
       const totalHasComment = t.comments?.total && hasUID;
@@ -108,8 +109,9 @@
       const vendorAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="vendor" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
       const totalAttrs = hasUID ? ` data-pl-element-uid="${t.plElementUID}" data-field="total" data-desc="${escapeHtml(t.description || 'No Description')}"` : '';
       const rowClasses = [t.note ? 'has-note' : '', t.fileAttachment?.hasFile ? 'has-file' : ''].filter(Boolean).join(' ');
+      
       html += `
-        <tr${rowClasses ? ` class="${rowClasses}"` : ''}>
+        <tr${rowClasses ? ` class="${rowClasses}"` : ''} data-pl-element-uid="${t.plElementUID || ''}">
           <td class="betterbudgyt-mini-desc${hasUID ? ' clickable-comment' : ''}${descHasComment ? ' has-comment' : ''}"${descAttrs}>${fileIcon}${noteIcon}${t.description || 'No Description'}</td>
           <td class="betterbudgyt-mini-vendor${hasUID ? ' clickable-comment' : ''}${vendorHasComment ? ' has-comment' : ''}"${vendorAttrs}>${stripNumberPrefix(t.vendor) || '-'}</td>
           ${hideMonths ? `<td class="betterbudgyt-mini-month">${getActiveMonths(t.monthly, months)}</td>` : months.map(m => {

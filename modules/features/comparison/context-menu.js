@@ -19,6 +19,20 @@
     const unlockedMonths = transactions?.getUnlockedMonths(datasetInfo) || [];
     const canAddTransaction = isEditable && unlockedMonths.length > 0;
     
+    let canDeleteTransaction = false;
+    if (isEditable && transactionData.plElementUID && transactionData.plElementUID !== '-1') {
+      const targetDataset = datasetInfo.datasetIndex === 1 
+        ? window.BetterBudgyt.features.comparison.modal?.getComparisonDataForElement(event.target)?.dataset1
+        : window.BetterBudgyt.features.comparison.modal?.getComparisonDataForElement(event.target)?.dataset2;
+      const dept = targetDataset?.departments?.find(d => d.storeUID === transactionData.storeUID);
+      const fullTransaction = dept?.transactions?.find(t => t.plElementUID === transactionData.plElementUID) ||
+                              targetDataset?.transactions?.find(t => t.plElementUID === transactionData.plElementUID);
+      if (fullTransaction && transactions?.canDeleteTransaction) {
+        const deleteCheck = transactions.canDeleteTransaction(fullTransaction, datasetInfo);
+        canDeleteTransaction = deleteCheck.canDelete;
+      }
+    }
+    
     const menu = document.createElement('div');
     menu.className = 'betterbudgyt-context-menu';
     menu.innerHTML = `
@@ -29,6 +43,9 @@
       ${canAddTransaction ? `
       <div class="betterbudgyt-context-menu-divider"></div>
       <div class="betterbudgyt-context-menu-item" data-action="add-transaction">Add Transaction</div>
+      ` : ''}
+      ${canDeleteTransaction ? `
+      <div class="betterbudgyt-context-menu-item betterbudgyt-context-menu-item-danger" data-action="delete-transaction">Delete Transaction</div>
       ` : ''}
     `;
     
@@ -103,6 +120,27 @@
         };
         
         transactions.showAddTransactionModal(departmentInfo, datasetInfo, comparisonData, hideMonths);
+      }
+    } else if (action === 'delete-transaction') {
+      const comparisonData = modalModule?.getComparisonDataForElement(originalEvent.target);
+      
+      if (transactions && comparisonData && transactionData.plElementUID) {
+        const targetDataset = datasetInfo.datasetIndex === 1 ? comparisonData.dataset1 : comparisonData.dataset2;
+        const dept = targetDataset?.departments?.find(d => d.storeUID === transactionData.storeUID);
+        const fullTransaction = dept?.transactions?.find(t => t.plElementUID === transactionData.plElementUID) ||
+                                targetDataset?.transactions?.find(t => t.plElementUID === transactionData.plElementUID);
+        
+        if (fullTransaction) {
+          const departmentInfo = {
+            storeUID: transactionData.storeUID,
+            departmentName: transactionData.departmentName || dept?.departmentName,
+            deptUID: dept?.deptUID || datasetInfo.deptUID
+          };
+          
+          transactions.showDeleteConfirmationModal(fullTransaction, departmentInfo, datasetInfo, comparisonData);
+        } else {
+          alert('Could not find transaction data. Please try again.');
+        }
       }
     }
   }
@@ -264,6 +302,14 @@
       
       .betterbudgyt-context-menu-item:hover {
         background: #f1f5f9;
+      }
+      
+      .betterbudgyt-context-menu-item-danger {
+        color: #dc2626;
+      }
+      
+      .betterbudgyt-context-menu-item-danger:hover {
+        background: #fef2f2;
       }
 
       .betterbudgyt-context-menu-divider {
