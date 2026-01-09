@@ -2631,50 +2631,6 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
    DELETE TRANSACTION STYLES
    ===================================================== */
 
-/* Delete button in transaction rows */
-.betterbudgyt-mini-actions-header {
-  width: 32px;
-  min-width: 32px;
-  text-align: center;
-  padding: 4px 2px !important;
-}
-
-.betterbudgyt-mini-actions {
-  width: 32px;
-  min-width: 32px;
-  text-align: center;
-  padding: 4px 2px !important;
-}
-
-.betterbudgyt-delete-tx-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #94a3b8;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.betterbudgyt-delete-tx-btn:hover {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-.betterbudgyt-delete-tx-btn:active {
-  background: #fee2e2;
-  transform: scale(0.95);
-}
-
-.betterbudgyt-delete-tx-btn svg {
-  display: block;
-}
-
 /* Delete confirmation modal overlay */
 .betterbudgyt-delete-tx-overlay {
   position: fixed;
@@ -2868,8 +2824,3 @@ tr.data-row:hover .betterbudgyt-row-compare-btn {
   cursor: not-allowed;
 }
 
-/* Has delete column modifier for tables */
-.has-delete-col .betterbudgyt-mini-table th:last-child,
-.has-delete-col .betterbudgyt-mini-table td:last-child {
-  border-left: 1px solid #e2e8f0;
-}

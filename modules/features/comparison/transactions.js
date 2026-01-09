@@ -536,6 +536,22 @@
     return null;
   }
 
+  function resolveCategoryUID(datasetInfo, transaction) {
+    const direct = resolveId(
+      transaction?.catUID,
+      transaction?.categoryUID,
+      datasetInfo?.categoryUID,
+      datasetInfo?.catUID
+    );
+    if (direct) return direct;
+    if (datasetInfo?.groupedcategory) {
+      const parts = datasetInfo.groupedcategory.split('|');
+      const grouped = parts[parts.length - 1];
+      return resolveId(grouped);
+    }
+    return null;
+  }
+
   // Fetch row data for a department (to get existing transactions)
   async function fetchRowDataForDepartment(departmentInfo, datasetInfo) {
     const budgetId = parseInt(datasetInfo.budgetId);
@@ -1339,6 +1355,7 @@
 
   // Build delete payload for DeleteBottomLevelCategory API
   function buildDeletePayload(transaction, departmentInfo, datasetInfo, netSalesData) {
+    const categoryUID = resolveCategoryUID(datasetInfo, transaction);
     const txData = {
       DATValueM1: transaction.monthly?.Apr || 0,
       DATValueM2: transaction.monthly?.May || 0,
@@ -1379,7 +1396,7 @@
       DATNetSalesM11: netSalesData?.Feb || 0,
       DATNetSalesM12: netSalesData?.Mar || 0,
       VENDescription: '',
-      DATPLCategoryUID: resolveId(datasetInfo.categoryUID) || '-1',
+      DATPLCategoryUID: resolveId(categoryUID) || '-1',
       DATDepartmentUID: resolveId(transaction.deptUID, datasetInfo.deptUID) || '3',
       DATStoreUID: resolveId(departmentInfo.storeUID) || '-1',
       DATVendorUID: '0',
