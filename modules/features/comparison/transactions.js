@@ -28,6 +28,27 @@
     return MONTHS.filter(m => !locked.has(m));
   }
 
+  // Check if a transaction can be deleted (all months with values must be unlocked)
+  function canDeleteTransaction(transaction, datasetInfo) {
+    const lockedMonths = getLockedMonths(datasetInfo);
+    if (lockedMonths.size === 0) return { canDelete: true, lockedWithValues: [] };
+    
+    const lockedWithValues = [];
+    const monthly = transaction.monthly || {};
+    
+    for (const month of MONTHS) {
+      const value = monthly[month] || 0;
+      if (value !== 0 && lockedMonths.has(month)) {
+        lockedWithValues.push(month);
+      }
+    }
+    
+    return {
+      canDelete: lockedWithValues.length === 0,
+      lockedWithValues
+    };
+  }
+
   // Distribute total amount across unlocked months (integers only)
   function distributeAmountAcrossMonths(total, unlockedMonths) {
     const distribution = {};
@@ -1316,14 +1337,403 @@
     });
   }
 
+  // Build delete payload for DeleteBottomLevelCategory API
+  function buildDeletePayload(transaction, departmentInfo, datasetInfo, netSalesData) {
+    const txData = {
+      DATValueM1: transaction.monthly?.Apr || 0,
+      DATValueM2: transaction.monthly?.May || 0,
+      DATValueM3: transaction.monthly?.Jun || 0,
+      DATValueM4: transaction.monthly?.Jul || 0,
+      DATValueM5: transaction.monthly?.Aug || 0,
+      DATValueM6: transaction.monthly?.Sep || 0,
+      DATValueM7: transaction.monthly?.Oct || 0,
+      DATValueM8: transaction.monthly?.Nov || 0,
+      DATValueM9: transaction.monthly?.Dec || 0,
+      DATValueM10: transaction.monthly?.Jan || 0,
+      DATValueM11: transaction.monthly?.Feb || 0,
+      DATValueM12: transaction.monthly?.Mar || 0,
+      // Percentage fields
+      DATValueM1P: transaction.monthlyPercent?.Apr || 0,
+      DATValueM2P: transaction.monthlyPercent?.May || 0,
+      DATValueM3P: transaction.monthlyPercent?.Jun || 0,
+      DATValueM4P: transaction.monthlyPercent?.Jul || 0,
+      DATValueM5P: transaction.monthlyPercent?.Aug || 0,
+      DATValueM6P: transaction.monthlyPercent?.Sep || 0,
+      DATValueM7P: transaction.monthlyPercent?.Oct || 0,
+      DATValueM8P: transaction.monthlyPercent?.Nov || 0,
+      DATValueM9P: transaction.monthlyPercent?.Dec || 0,
+      DATValueM10P: transaction.monthlyPercent?.Jan || 0,
+      DATValueM11P: transaction.monthlyPercent?.Feb || 0,
+      DATValueM12P: transaction.monthlyPercent?.Mar || 0,
+      // Net sales fields
+      DATNetSalesM1: netSalesData?.Apr || 0,
+      DATNetSalesM2: netSalesData?.May || 0,
+      DATNetSalesM3: netSalesData?.Jun || 0,
+      DATNetSalesM4: netSalesData?.Jul || 0,
+      DATNetSalesM5: netSalesData?.Aug || 0,
+      DATNetSalesM6: netSalesData?.Sep || 0,
+      DATNetSalesM7: netSalesData?.Oct || 0,
+      DATNetSalesM8: netSalesData?.Nov || 0,
+      DATNetSalesM9: netSalesData?.Dec || 0,
+      DATNetSalesM10: netSalesData?.Jan || 0,
+      DATNetSalesM11: netSalesData?.Feb || 0,
+      DATNetSalesM12: netSalesData?.Mar || 0,
+      VENDescription: '',
+      DATPLCategoryUID: resolveId(datasetInfo.categoryUID) || '-1',
+      DATDepartmentUID: resolveId(transaction.deptUID, datasetInfo.deptUID) || '3',
+      DATStoreUID: resolveId(departmentInfo.storeUID) || '-1',
+      DATVendorUID: '0',
+      PLElementUID: transaction.plElementUID,
+      LoadFromExcel: false,
+      ExcelFolderName: '',
+      AttachedSubCategoryFolderName: transaction.fileAttachment?.folderName || '',
+      VendorUIDCSV: transaction.vendorUIDCSV || '',
+      CurrencyUID: '1',
+      TransactionDate: new Date().toISOString(),
+      DayOfPeriod: 15,
+      TermUID: -1,
+      AmortizePeriod: 1
+    };
+
+    // Build audit data for the deleted transaction
+    const total = (transaction.monthly?.Apr || 0) + (transaction.monthly?.May || 0) +
+      (transaction.monthly?.Jun || 0) + (transaction.monthly?.Jul || 0) +
+      (transaction.monthly?.Aug || 0) + (transaction.monthly?.Sep || 0) +
+      (transaction.monthly?.Oct || 0) + (transaction.monthly?.Nov || 0) +
+      (transaction.monthly?.Dec || 0) + (transaction.monthly?.Jan || 0) +
+      (transaction.monthly?.Feb || 0) + (transaction.monthly?.Mar || 0);
+
+    const auditData = [[
+      transaction.description || '',
+      transaction.vendorUIDCSV || '',
+      String(transaction.monthly?.Apr || 0),
+      String(transaction.monthly?.May || 0),
+      String(transaction.monthly?.Jun || 0),
+      String(transaction.monthly?.Jul || 0),
+      String(transaction.monthly?.Aug || 0),
+      String(transaction.monthly?.Sep || 0),
+      String(transaction.monthly?.Oct || 0),
+      String(transaction.monthly?.Nov || 0),
+      String(transaction.monthly?.Dec || 0),
+      String(transaction.monthly?.Jan || 0),
+      String(transaction.monthly?.Feb || 0),
+      String(transaction.monthly?.Mar || 0),
+      String(total)
+    ]];
+
+    return {
+      dataList: [txData],
+      level: '0',
+      StoreUID: '-1',
+      DeptUID: '-1',
+      CategoryUID: '-1',
+      groupedcategory: datasetInfo.groupedcategory || '',
+      Stores: datasetInfo.storesFull || datasetInfo.stores || FULL_STORES_FALLBACK,
+      CompNonCompfilter: '',
+      viewLevel: 'STORE',
+      AuditData: auditData,
+      showInGlobal: true,
+      vendorIdCSV: '-2',
+      decimalPlaces: 0,
+      bsMode: '',
+      categoryType: 'PL'
+    };
+  }
+
+  // Delete a transaction via API
+  async function deleteTransaction(transaction, departmentInfo, datasetInfo, comparisonData) {
+    const { primeBudgetSession } = window.BetterBudgyt.features.comparison.dataFetcher;
+    
+    const budgetId = parseInt(datasetInfo.budgetId);
+    const budgetYear = parseInt(datasetInfo.budgetYear);
+    
+    if (!budgetId || !budgetYear) {
+      throw new Error('Missing budget context. Please reopen the comparison.');
+    }
+    
+    if (!transaction.plElementUID || transaction.plElementUID === '-1') {
+      throw new Error('Cannot delete transaction: missing PLElementUID');
+    }
+    
+    console.log('Deleting transaction:', { 
+      description: transaction.description, 
+      plElementUID: transaction.plElementUID,
+      departmentName: departmentInfo.departmentName 
+    });
+    
+    // Step 1: Prime session with GET request
+    if (datasetInfo.dataHref) {
+      await primeBudgetSession(datasetInfo.dataHref);
+    }
+    
+    // Step 2: Call CheckBudgetInSession
+    console.log('Activating budget session for delete...');
+    const sessionResponse = await fetch('/Budget/CheckBudgetInSession', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json, text/javascript, */*; q=0.01'
+      },
+      body: JSON.stringify({
+        BudgetId: budgetId,
+        BudgetYear: budgetYear
+      })
+    });
+    
+    if (!sessionResponse.ok) {
+      console.warn('CheckBudgetInSession returned:', sessionResponse.status);
+    }
+    
+    // Step 3: Fetch net sales data for the payload
+    console.log('Fetching net sales data for delete...');
+    const netSalesData = await fetchNetSalesData(datasetInfo);
+    
+    // Step 4: Build the delete payload
+    console.log('Building delete payload...');
+    const payload = buildDeletePayload(transaction, departmentInfo, datasetInfo, netSalesData);
+    
+    console.log('[deleteTransaction] Payload:', {
+      PLElementUID: payload.dataList[0].PLElementUID,
+      groupedcategory: payload.groupedcategory,
+      DATStoreUID: payload.dataList[0].DATStoreUID
+    });
+    
+    // Step 5: Call DeleteBottomLevelCategory
+    const refererUrl = datasetInfo.dataHref 
+      ? `${window.location.origin}${datasetInfo.dataHref}` 
+      : `${window.location.origin}/Budget/DataInput/${budgetId}/${budgetYear}`;
+    
+    console.log('Calling DeleteBottomLevelCategory...');
+    const response = await fetch('/Budget/DeleteBottomLevelCategory', {
+      method: 'POST',
+      credentials: 'same-origin',
+      referrer: refererUrl,
+      referrerPolicy: 'unsafe-url',
+      redirect: 'manual',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Accept': 'text/html, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    // Check for errors
+    if (response.type === 'opaqueredirect' || response.status === 302 || response.status === 301) {
+      throw new Error('Server rejected the request (session expired or locked)');
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Server error: HTTP ${response.status}`);
+    }
+    
+    const responseText = await response.text();
+    
+    // Check for error indicators
+    if (responseText.includes('CustomError') || responseText.includes('aspxerrorpath')) {
+      throw new Error('Server error occurred while deleting');
+    }
+    
+    if (responseText.toLowerCase().includes('locked')) {
+      throw new Error('This datasheet is locked for editing');
+    }
+    
+    console.log('Transaction deleted successfully');
+    
+    return { success: true };
+  }
+
+  // Show delete confirmation modal
+  function showDeleteConfirmationModal(transaction, departmentInfo, datasetInfo, comparisonData, onSuccess) {
+    if (!isDatasetEditable(datasetInfo)) {
+      alert('This scenario is locked and cannot be edited.');
+      return;
+    }
+    
+    if (!transaction.plElementUID || transaction.plElementUID === '-1') {
+      alert('Cannot delete this transaction: it has not been saved yet.');
+      return;
+    }
+    
+    const deleteCheck = canDeleteTransaction(transaction, datasetInfo);
+    if (!deleteCheck.canDelete) {
+      alert(`Cannot delete this transaction: it has values in locked month(s): ${deleteCheck.lockedWithValues.join(', ')}`);
+      return;
+    }
+    
+    // Remove any existing modal
+    const existingModal = document.querySelector('.betterbudgyt-delete-tx-overlay');
+    if (existingModal) existingModal.remove();
+    
+    const total = transaction.total || Object.values(transaction.monthly || {}).reduce((sum, v) => sum + (v || 0), 0);
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'betterbudgyt-delete-tx-overlay';
+    overlay.innerHTML = `
+      <div class="betterbudgyt-delete-tx-modal">
+        <div class="betterbudgyt-delete-tx-header">
+          <span class="betterbudgyt-delete-tx-title">Delete Transaction</span>
+          <button class="betterbudgyt-delete-tx-close">&times;</button>
+        </div>
+        <div class="betterbudgyt-delete-tx-content">
+          <div class="betterbudgyt-delete-tx-warning">
+            <span class="betterbudgyt-delete-tx-warning-icon">⚠️</span>
+            <span>This action cannot be undone.</span>
+          </div>
+          <div class="betterbudgyt-delete-tx-details">
+            <div class="betterbudgyt-delete-tx-detail-row">
+              <strong>Description:</strong> ${escapeHtml(transaction.description || 'No Description')}
+            </div>
+            <div class="betterbudgyt-delete-tx-detail-row">
+              <strong>Department:</strong> ${escapeHtml(departmentInfo.departmentName || 'N/A')}
+            </div>
+            <div class="betterbudgyt-delete-tx-detail-row">
+              <strong>Total:</strong> ${formatNumber(total)}
+            </div>
+            <div class="betterbudgyt-delete-tx-detail-row">
+              <strong>Dataset:</strong> ${escapeHtml(datasetInfo.dataType || 'N/A')}
+            </div>
+          </div>
+        </div>
+        <div class="betterbudgyt-delete-tx-footer">
+          <div class="betterbudgyt-delete-tx-status"></div>
+          <div class="betterbudgyt-delete-tx-actions">
+            <button class="betterbudgyt-delete-tx-cancel">Cancel</button>
+            <button class="betterbudgyt-delete-tx-confirm">Delete Transaction</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    const closeModal = () => overlay.remove();
+    
+    // Close handlers
+    overlay.querySelector('.betterbudgyt-delete-tx-close').addEventListener('click', closeModal);
+    overlay.querySelector('.betterbudgyt-delete-tx-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal();
+    });
+    
+    // Escape key
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    
+    // Delete handler
+    overlay.querySelector('.betterbudgyt-delete-tx-confirm').addEventListener('click', async () => {
+      const confirmBtn = overlay.querySelector('.betterbudgyt-delete-tx-confirm');
+      const statusEl = overlay.querySelector('.betterbudgyt-delete-tx-status');
+      
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Deleting...';
+      statusEl.textContent = 'Deleting transaction...';
+      statusEl.className = 'betterbudgyt-delete-tx-status info';
+      
+      try {
+        await deleteTransaction(transaction, departmentInfo, datasetInfo, comparisonData);
+        
+        statusEl.textContent = 'Transaction deleted successfully!';
+        statusEl.className = 'betterbudgyt-delete-tx-status success';
+        
+        // Update cache - remove the deleted transaction
+        updateCacheAfterDelete(transaction, departmentInfo, datasetInfo, comparisonData);
+        
+        // Refresh UI
+        refreshComparisonModalUI(comparisonData);
+        
+        // Trigger background refresh
+        if (comparisonData._refreshData) {
+          const { openDatasheetsParallel } = window.BetterBudgyt.features.comparison.dataFetcher;
+          const { cell1Data, cell2Data } = comparisonData._refreshData;
+          
+          openDatasheetsParallel(cell1Data, cell2Data, true)
+            .then(refreshResult => {
+              if (refreshResult?.data) {
+                comparisonData.dataset1 = refreshResult.data.dataset1;
+                comparisonData.dataset2 = refreshResult.data.dataset2;
+                refreshComparisonModalUI(comparisonData);
+                console.log('Background refresh completed after transaction delete');
+              }
+            })
+            .catch(err => console.warn('Background refresh failed:', err));
+        }
+        
+        if (onSuccess) onSuccess();
+        
+        setTimeout(closeModal, 1500);
+        
+      } catch (error) {
+        console.error('Failed to delete transaction:', error);
+        statusEl.textContent = `Failed to delete: ${error.message}`;
+        statusEl.className = 'betterbudgyt-delete-tx-status error';
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Delete Transaction';
+      }
+    });
+  }
+
+  // Update cache after deletion
+  function updateCacheAfterDelete(transaction, departmentInfo, datasetInfo, comparisonData) {
+    if (!comparisonData) return;
+    
+    const targetDataset = datasetInfo.datasetIndex === 1 ? comparisonData.dataset1 : comparisonData.dataset2;
+    const dept = targetDataset?.departments?.find(d => d.storeUID === departmentInfo.storeUID);
+    
+    if (!dept) {
+      console.warn('Department not found in cache:', departmentInfo.storeUID);
+      return;
+    }
+    
+    // Remove the transaction from the department's transactions
+    const txIndex = dept.transactions?.findIndex(t => t.plElementUID === transaction.plElementUID);
+    if (txIndex >= 0) {
+      const removedTx = dept.transactions.splice(txIndex, 1)[0];
+      
+      // Update department totals
+      if (dept.totals) {
+        MONTHS.forEach(m => {
+          dept.totals[m] = (dept.totals[m] || 0) - (removedTx.monthly?.[m] || 0);
+        });
+        dept.totals.total = (dept.totals.total || 0) - (removedTx.total || 0);
+      }
+    }
+    
+    // Remove from dataset-level transactions array
+    const datasetTxIndex = targetDataset.transactions?.findIndex(t => t.plElementUID === transaction.plElementUID);
+    if (datasetTxIndex >= 0) {
+      const removedTx = targetDataset.transactions.splice(datasetTxIndex, 1)[0];
+      
+      // Update grand totals
+      if (targetDataset.grandTotals) {
+        MONTHS.forEach(m => {
+          targetDataset.grandTotals[m] = (targetDataset.grandTotals[m] || 0) - (removedTx.monthly?.[m] || 0);
+        });
+        targetDataset.grandTotals.total = (targetDataset.grandTotals.total || 0) - (removedTx.total || 0);
+      }
+    }
+    
+    console.log('Cache updated after deleting transaction:', transaction.description);
+  }
+
   // Export to namespace
   window.BetterBudgyt.features.comparison.transactions = {
     isDatasetEditable,
     getLockedMonths,
     getUnlockedMonths,
+    canDeleteTransaction,
     distributeAmountAcrossMonths,
     showAddTransactionModal,
-    saveNewTransaction
+    saveNewTransaction,
+    deleteTransaction,
+    showDeleteConfirmationModal
   };
 
 })();
