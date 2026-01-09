@@ -16,16 +16,39 @@ This repository contains a Chrome extension that enhances Budgyt dashboards. Use
 - During development, use **Reload** on the extension, then refresh a `*.budgyt.com` page to verify changes.
 - Use Chrome DevTools on Budgyt pages to debug `content.js` and on the popup for `popup.js`.
 
-### Packaging for Chrome Web Store
+### Releasing a New Version
 
-Run `.\build.ps1` to create a zip file for submission. The script reads the version from `manifest.json` and outputs `BetterBudgyt-v{version}.zip`.
+The release process is fully automated via GitHub Actions. To release:
 
-**Important:** If you add new files or folders to the extension, update the `$includes` array in `build.ps1` to ensure they are included in the package. The current includes are:
+```bash
+npm install              # First time only
+npm run release:patch    # 1.5.0 → 1.5.1 (bug fixes)
+npm run release:minor    # 1.5.0 → 1.6.0 (new features)
+npm run release:major    # 1.5.0 → 2.0.0 (breaking changes)
+```
+
+This will:
+1. Bump version in `manifest.json` and `package.json`
+2. Commit and tag (e.g., `v1.5.1`)
+3. Push to GitHub
+4. GitHub Actions builds the zip and uploads to Chrome Web Store
+
+### Manual Build (for local testing)
+
+```bash
+npm run build            # Creates BetterBudgyt-v{version}.zip
+```
+
+Or use the legacy PowerShell script: `.\build.ps1`
+
+### Build Includes
+
+If you add new files or folders to the extension, update the `INCLUDES` array in `scripts/build.js`:
 
 - `manifest.json`, `content.js`, `popup.html`, `popup.js`, `styles.css`
 - `images/`, `modules/`, `lib/`
 
-Development artifacts like `context/`, `*.bak`, `AGENTS.md`, and `README.md` are intentionally excluded.
+Development artifacts like `context/`, `*.bak`, `AGENTS.md`, `README.md`, `scripts/`, and `node_modules/` are excluded.
 
 ## Coding Style & Naming Conventions
 

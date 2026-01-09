@@ -1,3 +1,4 @@
 cline_docs/
 *.docx
 *.zip
+node_modules/
