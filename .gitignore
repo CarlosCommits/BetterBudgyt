@@ -1,4 +1,7 @@
 cline_docs/
+context/
+*.har
+*.bak
 *.docx
 *.zip
 node_modules/
